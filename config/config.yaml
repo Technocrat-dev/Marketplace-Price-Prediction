@@ -1,0 +1,78 @@
+# ============================================================
+# Marketplace Price Prediction Engine — Configuration
+# ============================================================
+
+# --- Paths ---
+paths:
+  raw_data: "data/raw"
+  processed_data: "data/processed"
+  outputs: "outputs"
+  checkpoints: "outputs/checkpoints"
+  eda_plots: "outputs/eda"
+  onnx_model: "outputs/model.onnx"
+
+# --- Data ---
+data:
+  train_file: "train.tsv"
+  test_file: "test_stg2.tsv"
+  max_name_len: 10          # max tokens for product name
+  max_desc_len: 75          # max tokens for description
+  min_word_freq: 2          # min frequency to include word in vocab
+  test_size: 0.1
+  val_size: 0.1
+  random_seed: 42
+
+# --- Model ---
+model:
+  # Text encoder
+  text_embed_dim: 64
+  text_hidden_dim: 128
+  text_num_layers: 1
+  text_dropout: 0.3
+  text_bidirectional: true
+
+  # Tabular encoder
+  cat_embed_dim: 16
+  tabular_hidden_dim: 64
+
+  # Fusion head
+  fusion_hidden_dims: [256, 128]
+  fusion_dropout: 0.3
+
+# --- Training ---
+training:
+  batch_size: 512
+  num_epochs: 15
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  grad_clip: 1.0
+  patience: 5               # early stopping patience
+  scheduler: "plateau"      # "plateau" or "cosine"
+  scheduler_factor: 0.5
+  scheduler_patience: 2
+  num_workers: 0
+  pin_memory: true
+
+# --- Hyperparameter Tuning ---
+tuning:
+  n_trials: 20
+  param_grid:
+    learning_rate: [0.0005, 0.001, 0.002]
+    text_embed_dim: [32, 64, 128]
+    text_hidden_dim: [64, 128, 256]
+    fusion_dropout: [0.2, 0.3, 0.4]
+    batch_size: [256, 512, 1024]
+
+# --- Database ---
+database:
+  uri: "mongodb://localhost:27017"
+  name: "mercari_predictions"
+  collections:
+    products: "products"
+    predictions: "predictions"
+
+# --- Serving ---
+serving:
+  host: "0.0.0.0"
+  port: 8000
+  model_version: "1.0.0"
