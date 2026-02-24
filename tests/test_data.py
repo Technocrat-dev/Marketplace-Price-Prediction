@@ -326,19 +326,15 @@ class TestMercariDataset:
     
     @pytest.fixture
     def sample_dataset(self):
-        """Create a minimal Dataset from a small DataFrame."""
-        df = pd.DataFrame({
-            "name_seq": [[1, 2, 3, 0, 0]] * 10,
-            "desc_seq": [[1, 2, 3, 4, 5, 0, 0, 0, 0, 0]] * 10,
-            "main_cat": [1] * 10,
-            "sub_cat1": [2] * 10,
-            "sub_cat2": [3] * 10,
-            "brand_name": [4] * 10,
-            "item_condition_id": [1] * 10,
-            "shipping": [1.0] * 10,
-            "log_price": [3.5] * 10,
-        })
-        return MercariDataset(df)
+        """Create a minimal Dataset from numpy arrays."""
+        n = 10
+        return MercariDataset(
+            name_seqs=np.array([[1, 2, 3, 0, 0]] * n, dtype=np.int64),
+            desc_seqs=np.array([[1, 2, 3, 4, 5, 0, 0, 0, 0, 0]] * n, dtype=np.int64),
+            categoricals=np.array([[1, 2, 3, 4, 1]] * n, dtype=np.int64),
+            shipping=np.array([1.0] * n, dtype=np.float32),
+            targets=np.array([3.5] * n, dtype=np.float32),
+        )
     
     def test_len(self, sample_dataset):
         assert len(sample_dataset) == 10
@@ -396,11 +392,14 @@ class TestIntegration:
         assert metadata["name_vocab_size"] > 100
         assert metadata["desc_vocab_size"] > 100
     
-    def test_train_data_loadable(self, processed_data_dir):
-        df = pd.read_pickle(processed_data_dir / "train.pkl")
-        assert len(df) > 0
-        assert "name_seq" in df.columns
-        assert "log_price" in df.columns
+    def test_train_npy_files_loadable(self, processed_data_dir):
+        name_seqs = np.load(processed_data_dir / "train_name_seq.npy")
+        desc_seqs = np.load(processed_data_dir / "train_desc_seq.npy")
+        tabular = np.load(processed_data_dir / "train_tabular.npy")
+        assert len(name_seqs) > 0
+        assert name_seqs.shape[1] == 10   # max_name_len
+        assert desc_seqs.shape[1] == 75   # max_desc_len
+        assert tabular.shape[1] == 7      # 5 cats + shipping + log_price
     
     def test_vocab_loadable(self, processed_data_dir):
         vocab = Vocabulary.load(str(processed_data_dir / "name_vocab.json"))
@@ -412,10 +411,10 @@ class TestIntegration:
         assert "brand_name" in encoder.encoders
     
     def test_dataset_from_processed(self, processed_data_dir):
-        """End-to-end: load processed data → create Dataset → get a batch."""
-        df = pd.read_pickle(processed_data_dir / "train.pkl")
-        dataset = MercariDataset(df)
+        """End-to-end: load npy files → create Dataset → get a batch."""
+        from src.data.dataset import _load_split
         
+        dataset = _load_split(processed_data_dir, "train")
         assert len(dataset) > 0
         
         batch = dataset[0]
@@ -423,3 +422,4 @@ class TestIntegration:
         assert batch["desc_seq"].shape[0] == 75    # max_desc_len
         assert batch["categoricals"].shape[0] == 5  # 5 cat features
         assert batch["target"].item() > 0           # log price > 0
+
