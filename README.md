@@ -1,47 +1,48 @@
-# PriceScope — Marketplace Price Prediction Engine
+# PriceScope
 
 [![CI](https://github.com/Technocrat-dev/Marketplace-Price-Prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/Technocrat-dev/Marketplace-Price-Prediction/actions)
 
-A **multimodal deep learning system** that predicts marketplace product prices by analyzing text descriptions, brand reputation, category context, and item condition. Trained on **1.48 million** real Mercari listings.
+A multimodal deep learning system for marketplace price prediction. Combines bidirectional LSTMs for text encoding with categorical embeddings and a fusion MLP to predict product prices from names, descriptions, brands, categories, and condition ratings. Trained on 1.48 million Mercari product listings.
 
 ## Architecture
 
 ```
-┌─────────────┐   ┌─────────────┐   ┌─────────────────┐
-│ Product Name │   │ Description │   │ Categoricals    │
-│   (text)     │   │   (text)    │   │ brand+cat+cond  │
-└──────┬───────┘   └──────┬──────┘   └────────┬────────┘
-       │                  │                    │
-  ┌────▼────┐       ┌─────▼─────┐       ┌─────▼──────┐
-  │ BiLSTM  │       │  BiLSTM   │       │ Embeddings │
-  │ Encoder │       │  Encoder  │       │  + FC      │
-  │ (256d)  │       │  (256d)   │       │  (64d)     │
-  └────┬────┘       └─────┬─────┘       └─────┬──────┘
-       │                  │                    │
-       └──────────────────┼────────────────────┘
-                          │
-                   ┌──────▼──────┐
-                   │ Fusion MLP  │
-                   │ 576→256→128 │
-                   └──────┬──────┘
-                          │
-                   ┌──────▼──────┐
-                   │ Predicted   │
-                   │ log(price)  │
-                   └─────────────┘
+[Product Name]     [Description]      [Categoricals]
+    (text)             (text)         brand+cat+cond
+       |                  |                  |
+  +----v----+       +-----v-----+      +-----v------+
+  | BiLSTM  |       |  BiLSTM   |      | Embeddings |
+  | Encoder |       |  Encoder  |      |   + FC     |
+  | (256d)  |       |  (256d)   |      |   (64d)    |
+  +----+----+       +-----+-----+      +-----+------+
+       |                  |                  |
+       +------------------+------------------+
+                          |
+                   +------v------+
+                   | Fusion MLP  |
+                   | 576>256>128 |
+                   +------+------+
+                          |
+                   +------v------+
+                   |  Predicted  |
+                   |  log(price) |
+                   +-------------+
 ```
 
-**Stack:** PyTorch · FastAPI · MongoDB · ONNX Runtime · Next.js · Recharts · XGBoost · Optuna · SHAP
+**Key capabilities:** self-attention mechanism, Optuna hyperparameter tuning, XGBoost/LightGBM/Ridge baselines, SHAP explainability, rate-limited API with caching and optional auth, CSV batch upload, CI/CD pipeline.
+
+**Stack:** PyTorch, FastAPI, MongoDB, ONNX Runtime, Next.js, Recharts, XGBoost, Optuna, SHAP
 
 ## Quick Start
 
 ### Prerequisites
+
 - Python 3.10+
 - Node.js 18+
 - MongoDB (optional, for data persistence)
 - Kaggle API credentials (for dataset download)
 
-### 1. Clone & Setup Python Environment
+### 1. Clone and Setup Python Environment
 
 ```bash
 git clone https://github.com/Technocrat-dev/Marketplace-Price-Prediction.git
@@ -56,13 +57,13 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Download & Preprocess Data
+### 2. Download and Preprocess Data
 
 ```bash
 # Set up Kaggle credentials (~/.kaggle/kaggle.json)
 python data/download.py
 
-# Preprocess raw TSV → numpy arrays
+# Preprocess raw TSV into numpy arrays
 python -c "from src.data.preprocess import run_preprocessing_pipeline; run_preprocessing_pipeline('config/config.yaml')"
 ```
 
@@ -89,7 +90,9 @@ npm run dev
 
 ## API Documentation
 
-### `POST /predict` — Single Prediction
+Interactive docs available at `http://localhost:8000/docs` when the server is running.
+
+### `POST /predict` -- Single Prediction
 
 ```bash
 curl -X POST http://localhost:8000/predict \
@@ -104,7 +107,8 @@ curl -X POST http://localhost:8000/predict \
   }'
 ```
 
-**Response:**
+Response:
+
 ```json
 {
   "predicted_price": 68.42,
@@ -120,7 +124,7 @@ curl -X POST http://localhost:8000/predict \
 }
 ```
 
-### `POST /predict/batch` — Batch Prediction (up to 100 items)
+### `POST /predict/batch` -- Batch Prediction (up to 100 items)
 
 ```bash
 curl -X POST http://localhost:8000/predict/batch \
@@ -128,53 +132,53 @@ curl -X POST http://localhost:8000/predict/batch \
   -d '{"items": [{"name": "iPhone 12 Case"}, {"name": "Vintage Dress"}]}'
 ```
 
-### `GET /health` — Health Check
-
-```bash
-curl http://localhost:8000/health
-```
-
-### `GET /model/info` — Model Architecture & Metrics
-
-Returns training metrics, loss curves, architecture summary, and config.
-
-```bash
-curl http://localhost:8000/model/info
-```
-
-### `GET /products/search` — Search Product Catalog
-
-```bash
-curl "http://localhost:8000/products/search?q=nike+shoes&limit=10"
-```
-
-### `GET /products/stats` — Catalog Statistics
-
-```bash
-curl http://localhost:8000/products/stats
-```
-
-### `GET /predictions/recent` — Prediction History
-
-```bash
-curl "http://localhost:8000/predictions/recent?limit=20"
-```
-
-### `POST /predict/csv` — CSV Batch Upload (up to 500 rows)
+### `POST /predict/csv` -- CSV Batch Upload (up to 500 rows)
 
 ```bash
 curl -X POST http://localhost:8000/predict/csv \
   -F "file=@products.csv"
 ```
 
-### `POST /predict/explain` — Prediction with Feature Analysis
+### `POST /predict/explain` -- Prediction with Feature Analysis
 
-Returns the prediction plus a per-feature contribution breakdown.
+Returns the prediction along with a per-feature contribution breakdown.
 
 ```bash
 curl -X POST http://localhost:8000/predict/explain \
   -H "Content-Type: application/json" \
   -d '{"name": "Nike Air Max 90", "brand_name": "Nike"}'
+```
+
+### `GET /model/info` -- Model Architecture and Metrics
+
+Returns training metrics, loss curves, architecture details, and configuration.
+
+```bash
+curl http://localhost:8000/model/info
+```
+
+### `GET /products/search` -- Search Product Catalog
+
+```bash
+curl "http://localhost:8000/products/search?q=nike+shoes&limit=10"
+```
+
+### `GET /products/stats` -- Catalog Statistics
+
+```bash
+curl http://localhost:8000/products/stats
+```
+
+### `GET /predictions/recent` -- Prediction History
+
+```bash
+curl "http://localhost:8000/predictions/recent?limit=20"
+```
+
+### `GET /health` -- Health Check
+
+```bash
+curl http://localhost:8000/health
 ```
 
 ## Docker Deployment
@@ -184,6 +188,7 @@ docker-compose up --build
 ```
 
 This starts three services:
+
 | Service    | Port  | Description            |
 |------------|-------|------------------------|
 | `api`      | 8000  | FastAPI prediction API  |
@@ -193,48 +198,47 @@ This starts three services:
 ## Project Structure
 
 ```
-├── config/
-│   └── config.yaml          # All hyperparameters and paths
-├── data/
-│   ├── download.py          # Kaggle dataset downloader
-│   ├── raw/                 # Raw TSV files (gitignored)
-│   └── processed/           # Numpy arrays (gitignored)
-├── frontend/                # Next.js frontend
-│   ├── src/app/             # Pages: predict, dashboard, explore, about
-│   ├── src/components/      # Navbar with responsive design
-│   └── src/lib/api.ts       # API client
-├── scripts/
-│   ├── train.py             # Training entry point
-│   ├── train_baselines.py   # XGBoost / LightGBM / Ridge baselines
-│   ├── tune.py              # Optuna hyperparameter search
-│   ├── explain.py           # SHAP feature explanations
-│   ├── ingest_data.py       # MongoDB data ingestion
-│   └── export_onnx.py       # ONNX model export
-├── src/
-│   ├── data/                # Dataset, preprocessing, feature engineering
-│   ├── db/                  # MongoDB repositories
-│   ├── models/              # BiLSTM + Attention + TabularEncoder + Fusion MLP
-│   ├── serving/             # FastAPI app + schemas + rate limiting
-│   └── training/            # Trainer + evaluation metrics
-├── tests/                   # 88+ unit tests (pytest)
-├── .github/workflows/       # CI: test + lint + Docker build
-├── Dockerfile               # Multi-stage API container
-├── docker-compose.yml       # Full stack orchestration
-├── requirements.txt         # Python dependencies
-└── README.md
+config/
+  config.yaml              All hyperparameters and paths
+data/
+  download.py              Kaggle dataset downloader
+  raw/                     Raw TSV files (gitignored)
+  processed/               Numpy arrays (gitignored)
+frontend/                  Next.js frontend
+  src/app/                 Pages: predict, dashboard, explore, about
+  src/components/          Navbar with responsive design
+  src/lib/api.ts           API client
+scripts/
+  train.py                 Training entry point
+  train_baselines.py       XGBoost, LightGBM, Ridge baselines
+  tune.py                  Optuna hyperparameter search
+  explain.py               SHAP feature explanations
+  ingest_data.py           MongoDB data ingestion
+  export_onnx.py           ONNX model export
+src/
+  data/                    Dataset, preprocessing, feature engineering
+  db/                      MongoDB repositories
+  models/                  BiLSTM + Attention + TabularEncoder + Fusion MLP
+  serving/                 FastAPI app, schemas, rate limiting, caching
+  training/                Trainer, evaluation metrics
+tests/                     88+ unit tests (pytest)
+.github/workflows/         CI: test, lint, Docker build
+Dockerfile                 Multi-stage API container
+docker-compose.yml         Full stack orchestration
+requirements.txt           Python dependencies
 ```
 
 ## Model Performance
 
-| Metric      | Value  |
-|-------------|--------|
-| RMSLE       | 0.430  |
-| MAE         | $8.42  |
-| R² Score    | 0.482  |
-| Parameters  | 15.2M  |
-| Train Data  | 1.18M  |
-| Val Data    | 148K   |
-| Test Data   | 148K   |
+| Metric     | Value |
+|------------|-------|
+| RMSLE      | 0.430 |
+| MAE        | $8.42 |
+| R2 Score   | 0.482 |
+| Parameters | 15.2M |
+| Train Data | 1.18M |
+| Val Data   | 148K  |
+| Test Data  | 148K  |
 
 ## Running Tests
 
@@ -264,7 +268,7 @@ python scripts/explain.py --sample 100
 
 ## Configuration
 
-All hyperparameters are in `config/config.yaml`:
+All hyperparameters are centralized in `config/config.yaml`:
 
 | Section    | Key Parameters                                    |
 |------------|---------------------------------------------------|
@@ -277,14 +281,14 @@ All hyperparameters are in `config/config.yaml`:
 
 ## API Features
 
-| Feature             | Description                                    |
-|---------------------|------------------------------------------------|
-| Rate limiting       | 60/min on predict, 10/min on batch             |
-| Request logging     | Method, path, latency, client IP per request   |
-| LRU response cache  | Deduplicates identical predictions via MD5     |
-| API key auth        | Optional `X-API-Key` header (configurable)     |
-| CSV batch upload    | Upload CSV file for batch predictions          |
-| Feature explanation | Per-feature contribution breakdown             |
+| Feature             | Description                                  |
+|---------------------|----------------------------------------------|
+| Rate limiting       | 60/min on predict, 10/min on batch           |
+| Request logging     | Method, path, latency, client IP per request |
+| LRU response cache  | Deduplicates identical predictions via MD5   |
+| API key auth        | Optional X-API-Key header (configurable)     |
+| CSV batch upload    | Upload CSV file for batch predictions        |
+| Feature explanation | Per-feature contribution breakdown           |
 
 ## License
 
