@@ -80,7 +80,7 @@ def export_to_onnx(
     )
     
     # Load weights
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
     
@@ -97,7 +97,6 @@ def export_to_onnx(
     dummy_name = torch.randint(0, 100, (batch_size, max_name_len))
     dummy_desc = torch.randint(0, 100, (batch_size, max_desc_len))
     dummy_cats = torch.randint(0, 5, (batch_size, 5))
-    dummy_ship = torch.tensor([1.0]).unsqueeze(0) if batch_size == 1 else torch.ones(batch_size)
     dummy_ship = torch.ones(batch_size)
     
     # Trace the model first (handles LSTM ops correctly)

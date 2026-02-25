@@ -113,6 +113,15 @@ class MongoDBClient:
             self._client.close()
             logger.info("MongoDB connection closed")
     
+    def __enter__(self) -> "MongoDBClient":
+        """Context manager entry — connect and return self."""
+        self.connect()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit — close connection."""
+        self.close()
+    
     def drop_database(self) -> None:
         """Drop the entire database. USE WITH CAUTION."""
         if self._client:

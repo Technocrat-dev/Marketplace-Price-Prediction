@@ -88,7 +88,7 @@ class ModelServer:
         
         checkpoint_path = checkpoint_dir / "best_model.pt"
         if checkpoint_path.exists():
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
             self.model.load_state_dict(checkpoint["model_state_dict"])
             logger.info(f"Loaded model from epoch {checkpoint['epoch']}, "
                         f"val_loss={checkpoint['best_val_loss']:.4f}")
@@ -169,7 +169,7 @@ class ModelServer:
             },
             input_summary={
                 "name": clean_text(request.name),
-                "brand": request.brand_name.lower(),
+                "brand": (request.brand_name or "unknown").lower(),
                 "category": f"{main_cat}/{sub_cat1}/{sub_cat2}",
                 "condition": str(request.item_condition_id),
                 "shipping": "seller pays" if request.shipping else "buyer pays",
@@ -213,7 +213,7 @@ class ModelServer:
                 },
                 input_summary={
                     "name": clean_text(req.name),
-                    "brand": req.brand_name.lower(),
+                    "brand": (req.brand_name or "unknown").lower(),
                     "category": f"{main_cat}/{sub_cat1}/{sub_cat2}",
                     "condition": str(req.item_condition_id),
                     "shipping": "seller pays" if req.shipping else "buyer pays",
