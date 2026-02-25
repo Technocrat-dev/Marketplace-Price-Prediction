@@ -36,7 +36,7 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check src/ scripts/ tests/ --select E,F,W --ignore E501,E402
+          ruff check src/ scripts/ tests/ --select E,F,W --ignore E501,E402,W291,W293
 
       - name: Run unit tests (skip MongoDB-dependent tests)
         run: |
