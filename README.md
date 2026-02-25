@@ -110,7 +110,7 @@ Input Layer
 
 | Metric           | Test Set    |
 |------------------|-------------|
-| RMSLE            | **0.430**   |
+| RMSLE            | **0.430** |
 | MAE              | $8.42       |
 | Median AE        | $4.71       |
 | R-squared        | 0.482       |
