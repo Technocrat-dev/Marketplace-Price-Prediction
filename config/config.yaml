@@ -77,3 +77,6 @@ serving:
   host: "0.0.0.0"
   port: 8000
   model_version: "1.0.0"
+  api_key: ""                    # set to enable API key auth (leave empty to disable)
+  cache_maxsize: 1024            # LRU cache max entries
+  cache_ttl_seconds: 300         # cache TTL in seconds

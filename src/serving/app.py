@@ -13,6 +13,8 @@ Usage:
 import json
 import logging
 import time
+import hashlib
+from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -276,6 +278,11 @@ async def lifespan(app: FastAPI):
     logger.info("Loading model server...")
     try:
         server.load()
+        _load_api_key()
+        # Configure cache from config
+        serving_cfg = server.config.get("serving", {})
+        prediction_cache.maxsize = serving_cfg.get("cache_maxsize", 1024)
+        prediction_cache.ttl = serving_cfg.get("cache_ttl_seconds", 300)
         logger.info("Model server ready!")
     except Exception as e:
         logger.error(f"Failed to load model: {e}")
@@ -325,6 +332,72 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+# Optional API Key Authentication
+_api_key = None
+
+
+def _load_api_key():
+    """Load API key from config at startup."""
+    global _api_key
+    if server.config:
+        _api_key = server.config.get("serving", {}).get("api_key", "") or None
+
+
+@app.middleware("http")
+async def check_api_key(request: Request, call_next):
+    """Reject requests without valid API key (if api_key is configured)."""
+    if _api_key is None:
+        return await call_next(request)
+    
+    # Allow health and docs without auth
+    if request.url.path in ("/health", "/docs", "/openapi.json", "/redoc"):
+        return await call_next(request)
+    
+    key = request.headers.get("X-API-Key", "")
+    if key != _api_key:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or missing API key. Set X-API-Key header."},
+        )
+    return await call_next(request)
+
+
+# Simple LRU Prediction Cache
+class PredictionCache:
+    """Thread-safe LRU cache for prediction results."""
+    
+    def __init__(self, maxsize: int = 1024, ttl_seconds: int = 300):
+        self.maxsize = maxsize
+        self.ttl = ttl_seconds
+        self._cache: OrderedDict = OrderedDict()
+    
+    def _make_key(self, request: PredictionRequest) -> str:
+        """Hash the request to create a cache key."""
+        data = request.model_dump_json()
+        return hashlib.md5(data.encode()).hexdigest()
+    
+    def get(self, request: PredictionRequest):
+        key = self._make_key(request)
+        if key in self._cache:
+            result, ts = self._cache[key]
+            if time.time() - ts < self.ttl:
+                self._cache.move_to_end(key)
+                return result
+            else:
+                del self._cache[key]
+        return None
+    
+    def put(self, request: PredictionRequest, result):
+        key = self._make_key(request)
+        self._cache[key] = (result, time.time())
+        self._cache.move_to_end(key)
+        while len(self._cache) > self.maxsize:
+            self._cache.popitem(last=False)
+
+
+prediction_cache = PredictionCache()
+
+
 @app.post("/predict", response_model=PredictionResponse)
 @limiter.limit("60/minute")
 async def predict(request: Request, prediction: PredictionRequest):
@@ -333,6 +406,11 @@ async def predict(request: Request, prediction: PredictionRequest):
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:
+        # Check cache first
+        cached = prediction_cache.get(prediction)
+        if cached is not None:
+            return cached
+        
         result = server.predict(prediction)
         
         # Persist prediction to MongoDB (non-blocking, non-fatal)
@@ -352,6 +430,9 @@ async def predict(request: Request, prediction: PredictionRequest):
                 })
             except Exception as db_err:
                 logger.warning(f"Failed to persist prediction: {db_err}")
+        
+        # Cache the result
+        prediction_cache.put(prediction, result)
         
         return result
     except Exception as e:
