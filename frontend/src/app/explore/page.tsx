@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer, Cell, PieChart, Pie, Legend,
+} from 'recharts';
 import styles from './explore.module.css';
 import {
     formatPrice, searchProducts, fetchProductStats,
@@ -13,6 +17,24 @@ const CONDITIONS_MAP: Record<number, string> = {
     3: 'Good',
     4: 'Fair',
     5: 'Poor',
+};
+
+const CHART_COLORS = [
+    '#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#818cf8',
+    '#7c3aed', '#5b21b6', '#4f46e5', '#4338ca', '#3730a3',
+    '#6d28d9', '#9333ea', '#a855f7', '#d946ef', '#ec4899',
+];
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className={styles.chartTooltip}>
+            <p className={styles.chartTooltipLabel}>{label}</p>
+            <p className={styles.chartTooltipValue}>
+                {payload[0].value.toLocaleString()} products
+            </p>
+        </div>
+    );
 };
 
 export default function ExplorePage() {
@@ -68,6 +90,15 @@ export default function ExplorePage() {
         if (e.key === 'Enter') handleSearch();
     };
 
+    // Prepare chart data
+    const categoryData = stats?.category_distribution
+        ?.slice(0, 10)
+        .map(c => ({ name: c.category, count: c.count })) || [];
+
+    const brandData = stats?.top_brands
+        ?.slice(0, 8)
+        .map(b => ({ name: b.brand, count: b.count })) || [];
+
     return (
         <div className={styles.page}>
             <div className={styles.container}>
@@ -80,6 +111,7 @@ export default function ExplorePage() {
                 <div className={styles.statsGrid}>
                     {loading ? (
                         <>
+                            <div className={styles.statCard}><div className={styles.statSkeleton} /></div>
                             <div className={styles.statCard}><div className={styles.statSkeleton} /></div>
                             <div className={styles.statCard}><div className={styles.statSkeleton} /></div>
                             <div className={styles.statCard}><div className={styles.statSkeleton} /></div>
@@ -104,9 +136,87 @@ export default function ExplorePage() {
                                 </div>
                                 <div className={styles.statLabel}>Categories</div>
                             </div>
+                            <div className={styles.statCard}>
+                                <div className={styles.statValue}>
+                                    {stats ? formatPrice(stats.avg_price) : '—'}
+                                </div>
+                                <div className={styles.statLabel}>Avg Price</div>
+                            </div>
                         </>
                     )}
                 </div>
+
+                {/* Charts */}
+                {!loading && stats && (categoryData.length > 0 || brandData.length > 0) && (
+                    <div className={styles.chartsSection}>
+                        {categoryData.length > 0 && (
+                            <div className={styles.chartCard}>
+                                <h3 className={styles.chartTitle}>Top Categories</h3>
+                                <div className={styles.chartContainer}>
+                                    <ResponsiveContainer width="100%" height={320}>
+                                        <BarChart
+                                            data={categoryData}
+                                            layout="vertical"
+                                            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                                            <XAxis
+                                                type="number"
+                                                tick={{ fill: '#94a3b8', fontSize: 12 }}
+                                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                                            />
+                                            <YAxis
+                                                type="category"
+                                                dataKey="name"
+                                                tick={{ fill: '#cbd5e1', fontSize: 12 }}
+                                                width={75}
+                                            />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Bar dataKey="count" radius={[0, 6, 6, 0]} barSize={22}>
+                                                {categoryData.map((_, i) => (
+                                                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        )}
+
+                        {brandData.length > 0 && (
+                            <div className={styles.chartCard}>
+                                <h3 className={styles.chartTitle}>Top Brands</h3>
+                                <div className={styles.chartContainer}>
+                                    <ResponsiveContainer width="100%" height={320}>
+                                        <BarChart
+                                            data={brandData}
+                                            margin={{ top: 5, right: 30, left: 10, bottom: 50 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                                            <XAxis
+                                                dataKey="name"
+                                                tick={{ fill: '#cbd5e1', fontSize: 11 }}
+                                                angle={-30}
+                                                textAnchor="end"
+                                                height={60}
+                                            />
+                                            <YAxis
+                                                tick={{ fill: '#94a3b8', fontSize: 12 }}
+                                                tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                                            />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={36}>
+                                                {brandData.map((_, i) => (
+                                                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                                ))}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Search */}
                 <div className={styles.searchBox}>

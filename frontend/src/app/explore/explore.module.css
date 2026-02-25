@@ -72,7 +72,7 @@
 /* Stats Grid */
 .statsGrid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: var(--space-md);
     margin-bottom: var(--space-2xl);
 }
@@ -222,4 +222,65 @@
 .searchBtn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Charts Section */
+.chartsSection {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-xl);
+    margin-bottom: var(--space-2xl);
+}
+
+.chartCard {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+    transition: border-color 0.2s;
+}
+
+.chartCard:hover {
+    border-color: var(--border-hover);
+}
+
+.chartTitle {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: var(--space-lg);
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+
+.chartContainer {
+    width: 100%;
+    min-height: 320px;
+}
+
+.chartTooltip {
+    background: rgba(15, 15, 25, 0.95);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.chartTooltipLabel {
+    color: #e2e8f0;
+    font-size: 13px;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+}
+
+.chartTooltipValue {
+    color: #a78bfa;
+    font-size: 12px;
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .chartsSection {
+        grid-template-columns: 1fr;
+    }
 }
