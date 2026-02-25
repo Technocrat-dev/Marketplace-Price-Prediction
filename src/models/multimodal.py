@@ -56,6 +56,7 @@ class MercariPricePredictor(nn.Module):
         text_num_layers: int = 1,
         text_dropout: float = 0.3,
         text_bidirectional: bool = True,
+        use_attention: bool = False,
         cat_embed_dim: int = 16,
         tabular_hidden_dim: int = 64,
         fusion_hidden_dims: List[int] = None,
@@ -74,6 +75,7 @@ class MercariPricePredictor(nn.Module):
             num_layers=text_num_layers,
             dropout=text_dropout,
             bidirectional=text_bidirectional,
+            use_attention=use_attention,
         )
         
         self.desc_encoder = TextEncoder(
@@ -83,6 +85,7 @@ class MercariPricePredictor(nn.Module):
             num_layers=text_num_layers,
             dropout=text_dropout,
             bidirectional=text_bidirectional,
+            use_attention=use_attention,
         )
         
         # Tabular encoder

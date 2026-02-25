@@ -30,6 +30,7 @@ model:
   text_num_layers: 1
   text_dropout: 0.3
   text_bidirectional: true
+  use_attention: false         # set to true to enable self-attention over LSTM states
 
   # Tabular encoder
   cat_embed_dim: 16

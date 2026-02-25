@@ -41,6 +41,7 @@ def build_model(metadata: dict, cfg: dict) -> MercariPricePredictor:
         text_num_layers=cfg["model"]["text_num_layers"],
         text_dropout=cfg["model"]["text_dropout"],
         text_bidirectional=cfg["model"]["text_bidirectional"],
+        use_attention=cfg["model"].get("use_attention", False),
         cat_embed_dim=cfg["model"]["cat_embed_dim"],
         tabular_hidden_dim=cfg["model"]["tabular_hidden_dim"],
         fusion_hidden_dims=cfg["model"]["fusion_hidden_dims"],
