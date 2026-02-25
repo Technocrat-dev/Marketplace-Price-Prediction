@@ -2,11 +2,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface PredictionRequest {
     name: string;
-    item_description: string;
-    category_name: string;
-    brand_name: string;
-    item_condition_id: number;
-    shipping: number;
+    item_description?: string;
+    category_name?: string;
+    brand_name?: string;
+    item_condition_id?: number;
+    shipping?: number;
 }
 
 export interface PredictionResponse {

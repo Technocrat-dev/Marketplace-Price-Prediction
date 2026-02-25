@@ -12,8 +12,11 @@ Usage:
 
 import json
 import logging
+import os
+import re as re_module
 import time
 import hashlib
+import threading
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,7 +26,7 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import yaml
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, Query, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -99,11 +102,22 @@ class ModelServer:
         # Load categorical encoder
         self.cat_encoder = CategoricalEncoder.load(str(data_dir / "cat_encoder.json"))
         
-        # Build and load model
+        # Build and load model (pass all config params to match training)
+        model_cfg = cfg.get("model", {})
         self.model = MercariPricePredictor(
             name_vocab_size=self.metadata["name_vocab_size"],
             desc_vocab_size=self.metadata["desc_vocab_size"],
             cat_dims=self.metadata["cat_sizes"],
+            text_embed_dim=model_cfg.get("text_embed_dim", 64),
+            text_hidden_dim=model_cfg.get("text_hidden_dim", 128),
+            text_num_layers=model_cfg.get("text_num_layers", 1),
+            text_dropout=model_cfg.get("text_dropout", 0.3),
+            text_bidirectional=model_cfg.get("text_bidirectional", True),
+            use_attention=model_cfg.get("use_attention", False),
+            cat_embed_dim=model_cfg.get("cat_embed_dim", 16),
+            tabular_hidden_dim=model_cfg.get("tabular_hidden_dim", 64),
+            fusion_hidden_dims=model_cfg.get("fusion_hidden_dims", [256, 128]),
+            fusion_dropout=model_cfg.get("fusion_dropout", 0.3),
         )
         
         checkpoint_path = checkpoint_dir / "best_model.pt"
@@ -127,16 +141,19 @@ class ModelServer:
             logger.info("Loaded training results")
         
         # Connect to MongoDB (non-fatal if unavailable)
+        # Support env var overrides for Docker deployment
         try:
             from src.db.mongo import MongoDBClient, ProductRepository, PredictionRepository
+            mongo_uri = os.environ.get("MONGODB_URI", cfg["database"]["uri"])
+            mongo_db = os.environ.get("MONGODB_DB", cfg["database"]["name"])
             self.db_client = MongoDBClient(
-                uri=cfg["database"]["uri"],
-                db_name=cfg["database"]["name"],
+                uri=mongo_uri,
+                db_name=mongo_db,
             )
             self.db_client.connect()
             self.product_repo = ProductRepository(self.db_client.db)
             self.prediction_repo = PredictionRepository(self.db_client.db)
-            logger.info("MongoDB connected for product/prediction queries")
+            logger.info(f"MongoDB connected at {mongo_uri}/{mongo_db}")
         except Exception as e:
             logger.warning(f"MongoDB not available for queries: {e}")
         
@@ -370,6 +387,7 @@ class PredictionCache:
         self.maxsize = maxsize
         self.ttl = ttl_seconds
         self._cache: OrderedDict = OrderedDict()
+        self._lock = threading.Lock()
     
     def _make_key(self, request: PredictionRequest) -> str:
         """Hash the request to create a cache key."""
@@ -378,21 +396,23 @@ class PredictionCache:
     
     def get(self, request: PredictionRequest):
         key = self._make_key(request)
-        if key in self._cache:
-            result, ts = self._cache[key]
-            if time.time() - ts < self.ttl:
-                self._cache.move_to_end(key)
-                return result
-            else:
-                del self._cache[key]
+        with self._lock:
+            if key in self._cache:
+                result, ts = self._cache[key]
+                if time.time() - ts < self.ttl:
+                    self._cache.move_to_end(key)
+                    return result
+                else:
+                    del self._cache[key]
         return None
     
     def put(self, request: PredictionRequest, result):
         key = self._make_key(request)
-        self._cache[key] = (result, time.time())
-        self._cache.move_to_end(key)
-        while len(self._cache) > self.maxsize:
-            self._cache.popitem(last=False)
+        with self._lock:
+            self._cache[key] = (result, time.time())
+            self._cache.move_to_end(key)
+            while len(self._cache) > self.maxsize:
+                self._cache.popitem(last=False)
 
 
 prediction_cache = PredictionCache()
@@ -541,18 +561,23 @@ async def model_info():
 # =========================================================================
 
 @app.get("/products/search", response_model=ProductSearchResponse)
-async def search_products(q: str = "", limit: int = 20, offset: int = 0):
+async def search_products(
+    q: str = "",
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+):
     """Search products in the MongoDB catalog."""
     if not server.product_repo:
         raise HTTPException(status_code=503, detail="MongoDB not available")
     
     try:
         if q.strip():
-            results = server.product_repo.search(q, limit=limit + offset)
-            results = results[offset:offset + limit]
+            # Escape user input to prevent ReDoS via $regex
+            safe_q = re_module.escape(q)
+            results = server.product_repo.search(safe_q, limit=limit, offset=offset)
         else:
             # No query — return recent products
-            cursor = server.product_repo.collection.find().limit(limit).skip(offset)
+            cursor = server.product_repo.collection.find().skip(offset).limit(limit)
             results = list(cursor)
         
         products = []
@@ -615,7 +640,7 @@ async def product_stats():
 # =========================================================================
 
 @app.get("/predictions/recent", response_model=RecentPredictionsResponse)
-async def recent_predictions(limit: int = 20):
+async def recent_predictions(limit: int = Query(default=20, ge=1, le=100)):
     """Get the most recent predictions."""
     if not server.prediction_repo:
         raise HTTPException(status_code=503, detail="MongoDB not available")
@@ -677,17 +702,22 @@ async def predict_csv(request: Request, file: UploadFile = File(...)):
         if len(df) > 500:
             df = df.head(500)
         
-        results = []
+        # Build all prediction requests
+        requests = []
         for _, row in df.iterrows():
-            req = PredictionRequest(
+            requests.append(PredictionRequest(
                 name=str(row.get("name", "")),
                 item_description=str(row.get("item_description", "")),
                 category_name=str(row.get("category_name", "")),
                 brand_name=str(row.get("brand_name", "unknown")),
                 item_condition_id=int(row.get("item_condition_id", 3)),
                 shipping=int(row.get("shipping", 0)),
-            )
-            pred = server.predict(req)
+            ))
+        
+        # Batch predict for efficiency
+        predictions = server.predict_batch(requests)
+        results = []
+        for req, pred in zip(requests, predictions):
             results.append({
                 "name": req.name,
                 "predicted_price": pred.predicted_price,

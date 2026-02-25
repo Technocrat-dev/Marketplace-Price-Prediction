@@ -9,7 +9,6 @@ Tests:
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from src.serving.app import app, server
@@ -76,7 +75,7 @@ class TestHealthEndpoint:
         data = response.json()
         server.is_loaded = original
         # Status depends on model load state
-        assert data["model_loaded"] == False
+        assert data["model_loaded"] is False
 
 
 # =========================================================================
@@ -211,3 +210,145 @@ class TestSchemaValidation:
         """Shipping must be 0 or 1."""
         with pytest.raises(Exception):
             PredictionRequest(name="Test", shipping=2)
+
+
+# =========================================================================
+# Model Info Endpoint Tests
+# =========================================================================
+
+class TestModelInfoEndpoint:
+    """Tests for the GET /model/info endpoint."""
+    
+    def test_model_info_returns_503_when_not_loaded(self, client):
+        """Should return 503 when model is not loaded."""
+        original = server.is_loaded
+        server.is_loaded = False
+        response = client.get("/model/info")
+        server.is_loaded = original
+        assert response.status_code == 503
+    
+    def test_model_info_returns_404_without_training_results(self, client, mock_loaded_server):
+        """Should return 404 when training results are missing."""
+        original = server.training_results
+        server.training_results = None
+        response = client.get("/model/info")
+        server.training_results = original
+        assert response.status_code == 404
+
+
+# =========================================================================
+# CSV Predict Endpoint Tests
+# =========================================================================
+
+class TestCSVPredictEndpoint:
+    """Tests for the POST /predict/csv endpoint."""
+    
+    def test_csv_returns_503_when_not_loaded(self, client):
+        """Should return 503 when model is not loaded."""
+        original = server.is_loaded
+        server.is_loaded = False
+        import io
+        csv_content = b"name\nTest Product"
+        response = client.post(
+            "/predict/csv",
+            files={"file": ("test.csv", io.BytesIO(csv_content), "text/csv")},
+        )
+        server.is_loaded = original
+        assert response.status_code == 503
+    
+    def test_csv_rejects_non_csv(self, client, mock_loaded_server):
+        """Should reject non-CSV files."""
+        import io
+        response = client.post(
+            "/predict/csv",
+            files={"file": ("test.txt", io.BytesIO(b"data"), "text/plain")},
+        )
+        assert response.status_code == 400
+
+
+# =========================================================================
+# Explain Endpoint Tests
+# =========================================================================
+
+class TestExplainEndpoint:
+    """Tests for the POST /predict/explain endpoint."""
+    
+    def test_explain_returns_503_when_not_loaded(self, client):
+        """Should return 503 when model is not loaded."""
+        original = server.is_loaded
+        server.is_loaded = False
+        response = client.post("/predict/explain", json={
+            "name": "Test Product",
+        })
+        server.is_loaded = original
+        assert response.status_code == 503
+    
+    def test_explain_requires_name(self, client):
+        """Name is a required field."""
+        response = client.post("/predict/explain", json={
+            "item_description": "test",
+        })
+        assert response.status_code == 422
+
+
+# =========================================================================
+# Product Search Endpoint Tests
+# =========================================================================
+
+class TestProductSearchEndpoint:
+    """Tests for the GET /products/search endpoint."""
+    
+    def test_search_returns_503_without_mongo(self, client):
+        """Should return 503 when MongoDB is not available."""
+        original = server.product_repo
+        server.product_repo = None
+        response = client.get("/products/search")
+        server.product_repo = original
+        assert response.status_code == 503
+    
+    def test_search_rejects_limit_over_100(self, client):
+        """limit must be <= 100."""
+        response = client.get("/products/search?limit=200")
+        assert response.status_code == 422
+    
+    def test_search_rejects_negative_offset(self, client):
+        """offset must be >= 0."""
+        response = client.get("/products/search?offset=-1")
+        assert response.status_code == 422
+
+
+# =========================================================================
+# Product Stats Endpoint Tests
+# =========================================================================
+
+class TestProductStatsEndpoint:
+    """Tests for the GET /products/stats endpoint."""
+    
+    def test_stats_returns_503_without_mongo(self, client):
+        """Should return 503 when MongoDB is not available."""
+        original = server.product_repo
+        server.product_repo = None
+        response = client.get("/products/stats")
+        server.product_repo = original
+        assert response.status_code == 503
+
+
+# =========================================================================
+# Recent Predictions Endpoint Tests
+# =========================================================================
+
+class TestRecentPredictionsEndpoint:
+    """Tests for the GET /predictions/recent endpoint."""
+    
+    def test_recent_returns_503_without_mongo(self, client):
+        """Should return 503 when MongoDB is not available."""
+        original = server.prediction_repo
+        server.prediction_repo = None
+        response = client.get("/predictions/recent")
+        server.prediction_repo = original
+        assert response.status_code == 503
+    
+    def test_recent_rejects_limit_over_100(self, client):
+        """limit must be <= 100."""
+        response = client.get("/predictions/recent?limit=200")
+        assert response.status_code == 422

@@ -12,6 +12,7 @@ Provides:
 """
 
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -186,15 +187,17 @@ class ProductRepository:
     
     def find_by_brand(self, brand: str, limit: int = 50) -> List[Dict]:
         """Find products by brand name."""
+        safe_brand = re.escape(brand)
         cursor = self.collection.find(
-            {"brand_name": {"$regex": brand, "$options": "i"}}
+            {"brand_name": {"$regex": safe_brand, "$options": "i"}}
         ).limit(limit)
         return list(cursor)
     
     def find_by_category(self, category: str, limit: int = 50) -> List[Dict]:
         """Find products by main category."""
+        safe_category = re.escape(category)
         cursor = self.collection.find(
-            {"main_category": {"$regex": category, "$options": "i"}}
+            {"main_category": {"$regex": safe_category, "$options": "i"}}
         ).limit(limit)
         return list(cursor)
     
@@ -207,16 +210,16 @@ class ProductRepository:
         ).sort("price", ASCENDING).limit(limit)
         return list(cursor)
     
-    def search(self, query: str, limit: int = 20) -> List[Dict]:
+    def search(self, query: str, limit: int = 20, offset: int = 0) -> List[Dict]:
         """Text search across name and description."""
-        # Use regex for simple text matching
+        # Query should already be escaped by the caller for safety
         regex_filter = {
             "$or": [
                 {"name": {"$regex": query, "$options": "i"}},
                 {"item_description": {"$regex": query, "$options": "i"}},
             ]
         }
-        cursor = self.collection.find(regex_filter).limit(limit)
+        cursor = self.collection.find(regex_filter).skip(offset).limit(limit)
         return list(cursor)
     
     def update_price(self, product_id: str, new_price: float) -> bool:

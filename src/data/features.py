@@ -7,7 +7,6 @@ Adds derived features to improve model quality:
 - Category depth features
 """
 
-import re
 from typing import Dict
 
 import numpy as np
@@ -51,7 +50,7 @@ def compute_brand_features(df: pd.DataFrame) -> pd.DataFrame:
     
     # Binary: known brand vs unknown
     df["has_brand"] = (
-        df["brand_name"].fillna("").str.lower().isin(["", "unknown", "no brand"]) == False
+        ~df["brand_name"].fillna("").str.lower().isin(["", "unknown", "no brand"])
     ).astype(np.float32)
     
     return df

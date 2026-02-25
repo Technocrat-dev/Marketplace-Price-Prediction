@@ -118,6 +118,43 @@ class Trainer:
         self.epochs_without_improvement = 0
         self.current_epoch = 0
     
+    @property
+    def early_stop(self) -> bool:
+        """Whether early stopping criteria has been met."""
+        return self.epochs_without_improvement >= self.patience
+    
+    def train_epoch(self) -> float:
+        """Run one training epoch (public API for external callers like tune.py)."""
+        self.current_epoch += 1
+        return self._train_one_epoch()
+    
+    def validate_epoch(self) -> float:
+        """Run validation and update tracking state (public API for tune.py).
+        
+        Returns average validation loss. Also updates best_val_loss,
+        epochs_without_improvement, and LR scheduler.
+        """
+        val_loss = self._validate()
+        
+        # Track losses
+        self.val_losses.append(val_loss)
+        
+        # Update best tracking
+        if val_loss < self.best_val_loss:
+            self.best_val_loss = val_loss
+            self.epochs_without_improvement = 0
+        else:
+            self.epochs_without_improvement += 1
+        
+        # LR scheduling
+        if self.scheduler is not None:
+            if self._scheduler_type_str == "plateau":
+                self.scheduler.step(val_loss)
+            else:
+                self.scheduler.step()
+        
+        return val_loss
+    
     def _train_one_epoch(self) -> float:
         """Run one training epoch. Returns average loss."""
         self.model.train()
