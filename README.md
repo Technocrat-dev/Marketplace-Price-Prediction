@@ -30,14 +30,17 @@ Trained on **1.48 million** Mercari product listings, achieving **0.430 RMSLE** 
 
 ## Screenshots
 
-<!-- Add your screenshots here. Recommended: prediction form, dashboard, model info page. -->
-<!-- Example:
-![Prediction Form](docs/screenshots/predict.png)
-![Dashboard](docs/screenshots/dashboard.png)
-![Model Info](docs/screenshots/model_info.png)
--->
+**Prediction Form** -- Enter product details and get an instant price estimate with confidence range.
 
-*Screenshots coming soon — add images to `docs/screenshots/` and update this section.*
+![Prediction Form](docs/screenshots/3c93d1bc-2c3f-43d7-962b-a2a2b91b9342.png)
+
+**Model Dashboard** -- Live training metrics, loss curves, and recent prediction history.
+
+![Model Dashboard](docs/screenshots/3cabb305-0ab8-4d78-927f-d4005a7e7537.png)
+
+**Explore Products** -- Browse the catalog with category/brand analytics and full-text search.
+
+![Explore Products](docs/screenshots/ce1e6922-4479-4a48-90c8-2d3a211e632e.png)
 
 ---
 
