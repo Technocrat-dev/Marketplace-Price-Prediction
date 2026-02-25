@@ -109,3 +109,107 @@ class ErrorResponse(BaseModel):
     
     error: str
     detail: Optional[str] = None
+
+
+# =========================================================================
+# Model Info
+# =========================================================================
+
+class LossCurvePoint(BaseModel):
+    """A single epoch's loss values."""
+    epoch: int
+    train_loss: float
+    val_loss: float
+
+
+class ModelInfoResponse(BaseModel):
+    """Response schema for /model/info endpoint."""
+    
+    model_version: str
+    model_parameters: int
+    architecture: str = "BiLSTM + Embeddings + Fusion MLP"
+    
+    # Training metrics
+    test_metrics: Dict[str, float]
+    val_metrics: Dict[str, float]
+    loss_curve: List[LossCurvePoint]
+    best_epoch: int
+    total_epochs: int
+    
+    # Data stats
+    train_size: int
+    val_size: int
+    test_size: int
+    
+    # Config summary
+    config_summary: Dict[str, str]
+
+
+# =========================================================================
+# Product Endpoints
+# =========================================================================
+
+class ProductResponse(BaseModel):
+    """A single product from the catalog."""
+    
+    product_id: str
+    name: str
+    brand_name: str = "unknown"
+    category_name: str = ""
+    main_category: str = ""
+    item_condition_id: int = 3
+    shipping: int = 0
+    price: float = 0.0
+
+
+class ProductSearchResponse(BaseModel):
+    """Response for product search."""
+    
+    products: List[ProductResponse]
+    total: int
+    query: str
+
+
+class CategoryStat(BaseModel):
+    """Product count per category."""
+    category: str
+    count: int
+
+
+class BrandStat(BaseModel):
+    """Product count per brand."""
+    brand: str
+    count: int
+
+
+class ProductStatsResponse(BaseModel):
+    """Aggregate stats about the product catalog."""
+    
+    total_products: int
+    total_brands: int
+    total_categories: int
+    avg_price: float
+    category_distribution: List[CategoryStat]
+    top_brands: List[BrandStat]
+
+
+# =========================================================================
+# Prediction History
+# =========================================================================
+
+class RecentPredictionItem(BaseModel):
+    """A single prediction from history."""
+    
+    product_name: str
+    brand: str
+    predicted_price: float
+    confidence_low: float
+    confidence_high: float
+    predicted_at: str
+
+
+class RecentPredictionsResponse(BaseModel):
+    """Response for recent predictions."""
+    
+    predictions: List[RecentPredictionItem]
+    total: int

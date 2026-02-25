@@ -6,41 +6,10 @@ import {
     Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import styles from './dashboard.module.css';
-
-// Training results — loaded from the backend or static file
-// In production, fetch from /model/info endpoint
-const TRAINING_DATA = [
-    { epoch: 1, train_loss: 0.62, val_loss: 0.53 },
-    { epoch: 2, train_loss: 0.54, val_loss: 0.48 },
-    { epoch: 3, train_loss: 0.50, val_loss: 0.46 },
-    { epoch: 4, train_loss: 0.48, val_loss: 0.45 },
-    { epoch: 5, train_loss: 0.47, val_loss: 0.44 },
-    { epoch: 6, train_loss: 0.46, val_loss: 0.44 },
-    { epoch: 7, train_loss: 0.45, val_loss: 0.43 },
-    { epoch: 8, train_loss: 0.44, val_loss: 0.43 },
-    { epoch: 9, train_loss: 0.44, val_loss: 0.43 },
-    { epoch: 10, train_loss: 0.43, val_loss: 0.43 },
-];
-
-const METRICS = {
-    rmsle: '0.430',
-    mae: '$8.42',
-    r2: '0.482',
-    params: '15.2M',
-};
-
-const CONFIG = [
-    ['Architecture', 'BiLSTM + Embeddings + Fusion MLP'],
-    ['Text Encoder', '64d embeddings → 128d BiLSTM → 256d output'],
-    ['Tabular Encoder', '16d embeddings → 64d FC → 64d output'],
-    ['Fusion Head', '576 → 256 → 128 → 1'],
-    ['Optimizer', 'Adam (lr=0.001, weight_decay=1e-5)'],
-    ['Batch Size', '512'],
-    ['Epochs', '10'],
-    ['Early Stopping', 'Patience 5'],
-    ['Gradient Clipping', '1.0'],
-    ['LR Scheduler', 'ReduceLROnPlateau (factor=0.5, patience=2)'],
-];
+import {
+    fetchModelInfo, fetchRecentPredictions, formatPrice,
+    type ModelInfoResponse, type RecentPredictionItem,
+} from '@/lib/api';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload) return null;
@@ -64,9 +33,56 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     );
 };
 
+/* Skeleton loader for metric cards */
+function MetricSkeleton() {
+    return (
+        <div className={styles.metricCard}>
+            <div className={`${styles.skeleton} ${styles.skeletonLabel}`} />
+            <div className={`${styles.skeleton} ${styles.skeletonValue}`} />
+            <div className={`${styles.skeleton} ${styles.skeletonSub}`} />
+        </div>
+    );
+}
+
 export default function DashboardPage() {
     const [mounted, setMounted] = useState(false);
-    useEffect(() => setMounted(true), []);
+    const [modelInfo, setModelInfo] = useState<ModelInfoResponse | null>(null);
+    const [predictions, setPredictions] = useState<RecentPredictionItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        setMounted(true);
+
+        async function loadData() {
+            try {
+                const [info, recent] = await Promise.allSettled([
+                    fetchModelInfo(),
+                    fetchRecentPredictions(10),
+                ]);
+
+                if (info.status === 'fulfilled') setModelInfo(info.value);
+                if (recent.status === 'fulfilled') setPredictions(recent.value.predictions);
+            } catch (err) {
+                setError(err instanceof Error ? err.message : 'Failed to load data');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        loadData();
+    }, []);
+
+    const metrics = modelInfo ? {
+        rmsle: modelInfo.test_metrics.rmsle?.toFixed(3) || '—',
+        mae: `$${modelInfo.test_metrics.mae?.toFixed(2) || '—'}`,
+        r2: modelInfo.test_metrics.r2?.toFixed(3) || '—',
+        params: `${(modelInfo.model_parameters / 1e6).toFixed(1)}M`,
+    } : null;
+
+    const config = modelInfo
+        ? Object.entries(modelInfo.config_summary)
+        : [];
 
     return (
         <div className={styles.page}>
@@ -76,39 +92,56 @@ export default function DashboardPage() {
                     <p>Training performance and architecture overview</p>
                 </div>
 
+                {error && (
+                    <div className={styles.errorBanner}>{error}</div>
+                )}
+
                 {/* Metric Cards */}
                 <div className={styles.metricsGrid}>
-                    <div className={styles.metricCard}>
-                        <div className={styles.metricLabel}>RMSLE</div>
-                        <div className={styles.metricValue}>{METRICS.rmsle}</div>
-                        <div className={`${styles.metricSub} ${styles.metricGood}`}>
-                            ↓ Lower is better
-                        </div>
-                    </div>
-                    <div className={styles.metricCard}>
-                        <div className={styles.metricLabel}>Mean Abs Error</div>
-                        <div className={styles.metricValue}>{METRICS.mae}</div>
-                        <div className={styles.metricSub}>Average prediction error</div>
-                    </div>
-                    <div className={styles.metricCard}>
-                        <div className={styles.metricLabel}>R² Score</div>
-                        <div className={styles.metricValue}>{METRICS.r2}</div>
-                        <div className={styles.metricSub}>Variance explained</div>
-                    </div>
-                    <div className={styles.metricCard}>
-                        <div className={styles.metricLabel}>Parameters</div>
-                        <div className={styles.metricValue}>{METRICS.params}</div>
-                        <div className={styles.metricSub}>Trainable weights</div>
-                    </div>
+                    {loading ? (
+                        <>
+                            <MetricSkeleton />
+                            <MetricSkeleton />
+                            <MetricSkeleton />
+                            <MetricSkeleton />
+                        </>
+                    ) : metrics ? (
+                        <>
+                            <div className={styles.metricCard}>
+                                <div className={styles.metricLabel}>RMSLE</div>
+                                <div className={styles.metricValue}>{metrics.rmsle}</div>
+                                <div className={`${styles.metricSub} ${styles.metricGood}`}>
+                                    ↓ Lower is better
+                                </div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <div className={styles.metricLabel}>Mean Abs Error</div>
+                                <div className={styles.metricValue}>{metrics.mae}</div>
+                                <div className={styles.metricSub}>Average prediction error</div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <div className={styles.metricLabel}>R² Score</div>
+                                <div className={styles.metricValue}>{metrics.r2}</div>
+                                <div className={styles.metricSub}>Variance explained</div>
+                            </div>
+                            <div className={styles.metricCard}>
+                                <div className={styles.metricLabel}>Parameters</div>
+                                <div className={styles.metricValue}>{metrics.params}</div>
+                                <div className={styles.metricSub}>Trainable weights</div>
+                            </div>
+                        </>
+                    ) : null}
                 </div>
 
                 {/* Loss Curves */}
                 <div className={styles.section}>
                     <h3 className={styles.sectionTitle}>Training Progress</h3>
                     <div className={styles.chartCard}>
-                        {mounted ? (
+                        {!mounted || loading ? (
+                            <div className={styles.chartPlaceholder}>Loading chart...</div>
+                        ) : modelInfo?.loss_curve ? (
                             <ResponsiveContainer width="100%" height={320}>
-                                <LineChart data={TRAINING_DATA}>
+                                <LineChart data={modelInfo.loss_curve}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#2A2A3A" />
                                     <XAxis
                                         dataKey="epoch"
@@ -120,7 +153,7 @@ export default function DashboardPage() {
                                         stroke="#555568"
                                         fontSize={12}
                                         tickLine={false}
-                                        domain={[0.35, 0.7]}
+                                        domain={['auto', 'auto']}
                                     />
                                     <Tooltip content={<CustomTooltip />} />
                                     <Legend
@@ -147,10 +180,39 @@ export default function DashboardPage() {
                                 </LineChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className={styles.chartPlaceholder}>Loading chart...</div>
+                            <div className={styles.chartPlaceholder}>No training data available</div>
                         )}
                     </div>
                 </div>
+
+                {/* Recent Predictions */}
+                {predictions.length > 0 && (
+                    <div className={styles.section}>
+                        <h3 className={styles.sectionTitle}>Recent Predictions</h3>
+                        <div className={styles.predictionTable}>
+                            <div className={styles.predictionHeader}>
+                                <span>Product</span>
+                                <span>Brand</span>
+                                <span>Predicted</span>
+                                <span>Range</span>
+                                <span>Time</span>
+                            </div>
+                            {predictions.map((pred, i) => (
+                                <div key={i} className={styles.predictionRow}>
+                                    <span className={styles.predName}>{pred.product_name}</span>
+                                    <span className={styles.predBrand}>{pred.brand}</span>
+                                    <span className={styles.predPrice}>{formatPrice(pred.predicted_price)}</span>
+                                    <span className={styles.predRange}>
+                                        {formatPrice(pred.confidence_low)} – {formatPrice(pred.confidence_high)}
+                                    </span>
+                                    <span className={styles.predTime}>
+                                        {new Date(pred.predicted_at).toLocaleString()}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Architecture */}
                 <div className={styles.section}>
@@ -175,17 +237,19 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Training Config */}
-                <div className={styles.section}>
-                    <h3 className={styles.sectionTitle}>Training Configuration</h3>
-                    <div className={styles.configTable}>
-                        {CONFIG.map(([key, value]) => (
-                            <div key={key} className={styles.configRow}>
-                                <div className={styles.configKey}>{key}</div>
-                                <div className={styles.configValue}>{value}</div>
-                            </div>
-                        ))}
+                {config.length > 0 && (
+                    <div className={styles.section}>
+                        <h3 className={styles.sectionTitle}>Training Configuration</h3>
+                        <div className={styles.configTable}>
+                            {config.map(([key, value]) => (
+                                <div key={key} className={styles.configRow}>
+                                    <div className={styles.configKey}>{key}</div>
+                                    <div className={styles.configValue}>{value}</div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );
