@@ -1,0 +1,143 @@
+.page {
+    padding: var(--space-2xl) 0;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 var(--space-lg);
+}
+
+.header {
+    margin-bottom: var(--space-2xl);
+    padding-bottom: var(--space-2xl);
+    border-bottom: 1px solid var(--border);
+}
+
+.header h1 {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: var(--space-sm);
+}
+
+.header p {
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 640px;
+}
+
+/* Section */
+.section {
+    margin-bottom: var(--space-2xl);
+    padding-bottom: var(--space-2xl);
+    border-bottom: 1px solid var(--border);
+}
+
+.section:last-child {
+    border-bottom: none;
+}
+
+.section h2 {
+    font-size: 22px;
+    margin-bottom: var(--space-lg);
+}
+
+.section p {
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+/* Pipeline */
+.pipeline {
+    display: flex;
+    gap: 2px;
+    margin: var(--space-lg) 0;
+}
+
+.pipelineStep {
+    flex: 1;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: var(--space-md);
+    text-align: center;
+}
+
+.pipelineStep:first-child {
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.pipelineStep:last-child {
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.pipelineIcon {
+    font-size: 24px;
+    margin-bottom: 6px;
+}
+
+.pipelineLabel {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pipelineSub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* Tech Stack */
+.techGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-md);
+}
+
+.techCard {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+}
+
+.techCard h4 {
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.techCard p {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 0;
+}
+
+/* Links */
+.linkRow {
+    display: flex;
+    gap: var(--space-md);
+    margin-top: var(--space-lg);
+}
+
+.linkBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 10px 20px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all var(--transition-fast);
+}
+
+.linkBtn:hover {
+    border-color: var(--accent);
+    background: var(--accent-muted);
+}

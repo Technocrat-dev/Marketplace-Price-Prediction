@@ -1,0 +1,175 @@
+.page {
+    padding: var(--space-2xl) 0;
+}
+
+.container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 var(--space-lg);
+}
+
+.header {
+    margin-bottom: var(--space-2xl);
+}
+
+.header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--space-xs);
+}
+
+.header p {
+    color: var(--text-muted);
+    font-size: 15px;
+}
+
+/* Metric Cards */
+.metricsGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-md);
+    margin-bottom: var(--space-2xl);
+}
+
+.metricCard {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+}
+
+.metricLabel {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: var(--space-sm);
+}
+
+.metricValue {
+    font-family: var(--font-mono);
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+
+.metricSub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.metricGood {
+    color: var(--success);
+}
+
+/* Sections */
+.section {
+    margin-bottom: var(--space-2xl);
+}
+
+.sectionTitle {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: var(--space-lg);
+    color: var(--text-primary);
+}
+
+/* Chart Container */
+.chartCard {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+}
+
+.chartPlaceholder {
+    height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+/* Architecture */
+.archGrid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-md);
+}
+
+.archCard {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-lg);
+}
+
+.archCard h4 {
+    font-size: 14px;
+    margin-bottom: var(--space-sm);
+    color: var(--text-primary);
+}
+
+.archCard p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-sm);
+}
+
+.archTag {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-accent);
+    background: var(--accent-muted);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    display: inline-block;
+}
+
+/* Config Table */
+.configTable {
+    width: 100%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.configRow {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.configRow:last-child {
+    border-bottom: none;
+}
+
+.configKey {
+    width: 200px;
+    padding: 10px var(--space-md);
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    font-weight: 500;
+}
+
+.configValue {
+    flex: 1;
+    padding: 10px var(--space-md);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+@media (max-width: 768px) {
+    .metricsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .archGrid {
+        grid-template-columns: 1fr;
+    }
+}
