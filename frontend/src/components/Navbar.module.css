@@ -91,3 +91,48 @@
         opacity: 0.4;
     }
 }
+
+/* Hamburger button — hidden on desktop */
+.hamburger {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: var(--space-sm);
+}
+
+.hamburger span {
+    width: 20px;
+    height: 2px;
+    background: var(--text-secondary);
+    border-radius: 1px;
+    transition: all var(--transition-fast);
+}
+
+@media (max-width: 768px) {
+    .hamburger {
+        display: flex;
+    }
+
+    .links {
+        display: none;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
+        background: var(--bg-elevated);
+        border-bottom: 1px solid var(--border);
+        flex-direction: column;
+        padding: var(--space-md) var(--space-lg);
+    }
+
+    .linksOpen {
+        display: flex;
+    }
+
+    .status {
+        display: none;
+    }
+}

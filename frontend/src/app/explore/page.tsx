@@ -62,12 +62,14 @@ export default function ExplorePage() {
                 {/* Search */}
                 <div className={styles.searchBox}>
                     <input
+                        id="product-search"
                         className={styles.searchInput}
                         placeholder="Search by product name, brand, or category..."
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
+                        aria-label="Search products"
                     />
-                    <button className={styles.searchBtn}>Search</button>
+                    <button className={styles.searchBtn} aria-label="Search">Search</button>
                 </div>
 
                 {/* Products */}

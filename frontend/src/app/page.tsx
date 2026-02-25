@@ -55,8 +55,9 @@ export default function PredictPage() {
               <div className={styles.sectionLabel}>Product Info</div>
               <div className={styles.fieldGroup}>
                 <div className={styles.field}>
-                  <label className={styles.label}>What are you selling?</label>
+                  <label htmlFor="product-name" className={styles.label}>What are you selling?</label>
                   <input
+                    id="product-name"
                     className={styles.input}
                     type="text"
                     placeholder="e.g. Nike Air Max 90 Classic"
@@ -67,8 +68,9 @@ export default function PredictPage() {
                 </div>
 
                 <div className={styles.field}>
-                  <label className={styles.label}>Describe it</label>
+                  <label htmlFor="product-description" className={styles.label}>Describe it</label>
                   <textarea
+                    id="product-description"
                     className={styles.textarea}
                     placeholder="Condition details, size, color, any flaws..."
                     value={description}
@@ -78,8 +80,9 @@ export default function PredictPage() {
 
                 <div className={styles.fieldRow}>
                   <div className={styles.field}>
-                    <label className={styles.label}>Category</label>
+                    <label htmlFor="product-category" className={styles.label}>Category</label>
                     <input
+                      id="product-category"
                       className={styles.input}
                       type="text"
                       placeholder="e.g. Men/Shoes/Athletic"
@@ -88,8 +91,9 @@ export default function PredictPage() {
                     />
                   </div>
                   <div className={styles.field}>
-                    <label className={styles.label}>Brand</label>
+                    <label htmlFor="product-brand" className={styles.label}>Brand</label>
                     <input
+                      id="product-brand"
                       className={styles.input}
                       type="text"
                       placeholder="e.g. Nike"
@@ -108,9 +112,10 @@ export default function PredictPage() {
                   <button
                     type="button"
                     key={c.value}
-                    className={`${styles.conditionBtn} ${condition === c.value ? styles.conditionBtnActive : ''
-                      }`}
+                    className={`${styles.conditionBtn} ${condition === c.value ? styles.conditionBtnActive : ''}`}
                     onClick={() => setCondition(c.value)}
+                    aria-label={`Condition: ${c.label}`}
+                    aria-pressed={condition === c.value}
                   >
                     {c.label}
                   </button>
@@ -123,6 +128,16 @@ export default function PredictPage() {
               <div
                 className={styles.toggle}
                 onClick={() => setShipping(shipping === 1 ? 0 : 1)}
+                role="switch"
+                aria-checked={shipping === 1}
+                aria-label="Shipping payment toggle"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setShipping(shipping === 1 ? 0 : 1);
+                  }
+                }}
               >
                 <div className={`${styles.toggleTrack} ${shipping === 1 ? styles.toggleTrackActive : ''}`}>
                   <div className={`${styles.toggleThumb} ${shipping === 1 ? styles.toggleThumbActive : ''}`} />
@@ -135,6 +150,7 @@ export default function PredictPage() {
 
             <button
               type="submit"
+              id="predict-submit"
               className={styles.submitBtn}
               disabled={loading || !name.trim()}
             >
@@ -143,7 +159,7 @@ export default function PredictPage() {
           </form>
 
           {/* Right: Results */}
-          <div className={styles.resultPanel}>
+          <div className={styles.resultPanel} aria-live="polite">
             <div className={styles.resultCard}>
               {loading && (
                 <div className={styles.loading}>
