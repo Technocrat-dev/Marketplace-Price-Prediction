@@ -1,0 +1,63 @@
+# ============================================================
+# Marketplace Price Prediction — Full Stack
+# API (FastAPI) + Frontend (Next.js) + MongoDB
+# ============================================================
+
+services:
+  # MongoDB
+  mongodb:
+    image: mongo:7
+    container_name: mercari-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Prediction API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mercari-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - MONGODB_DB=mercari_predictions
+    volumes:
+      - ./outputs:/app/outputs
+      - ./data/processed:/app/data/processed
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mercari-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  mongo_data:
