@@ -8,6 +8,11 @@ from src.data.preprocess import (
     parse_category,
     run_preprocessing_pipeline,
 )
+from src.data.features import (
+    engineer_features,
+    engineer_single_item,
+    ENGINEERED_FEATURES,
+)
 
 __all__ = [
     "MercariDataset",
@@ -17,4 +22,7 @@ __all__ = [
     "clean_text",
     "parse_category",
     "run_preprocessing_pipeline",
+    "engineer_features",
+    "engineer_single_item",
+    "ENGINEERED_FEATURES",
 ]

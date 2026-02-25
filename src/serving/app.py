@@ -23,7 +23,7 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import yaml
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -637,4 +637,114 @@ async def recent_predictions(limit: int = 20):
         return RecentPredictionsResponse(predictions=predictions, total=total)
     except Exception as e:
         logger.error(f"Recent predictions error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =========================================================================
+# CSV Batch Upload
+# =========================================================================
+
+@app.post("/predict/csv")
+@limiter.limit("5/minute")
+async def predict_csv(request: Request, file: UploadFile = File(...)):
+    """
+    Upload a CSV file with product listings and get batch predictions.
+    
+    Expected columns: name, item_description, category_name, brand_name,
+                     item_condition_id, shipping
+    """
+    if not server.is_loaded:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files accepted")
+    
+    try:
+        import pandas as pd
+        import io
+        
+        content = await file.read()
+        df = pd.read_csv(io.BytesIO(content))
+        
+        required_cols = {"name"}
+        if not required_cols.issubset(set(df.columns)):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"CSV must contain columns: {required_cols}"
+            )
+        
+        # Cap at 500 rows
+        if len(df) > 500:
+            df = df.head(500)
+        
+        results = []
+        for _, row in df.iterrows():
+            req = PredictionRequest(
+                name=str(row.get("name", "")),
+                item_description=str(row.get("item_description", "")),
+                category_name=str(row.get("category_name", "")),
+                brand_name=str(row.get("brand_name", "unknown")),
+                item_condition_id=int(row.get("item_condition_id", 3)),
+                shipping=int(row.get("shipping", 0)),
+            )
+            pred = server.predict(req)
+            results.append({
+                "name": req.name,
+                "predicted_price": pred.predicted_price,
+                "confidence_low": pred.confidence_range["low"],
+                "confidence_high": pred.confidence_range["high"],
+            })
+        
+        return {
+            "filename": file.filename,
+            "total_rows": len(results),
+            "predictions": results,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"CSV prediction error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =========================================================================
+# Feature Explanation Endpoint
+# =========================================================================
+
+@app.post("/predict/explain")
+@limiter.limit("30/minute")
+async def predict_explain(request: Request, prediction: PredictionRequest):
+    """
+    Predict price with per-feature contribution breakdown.
+    
+    Returns the prediction plus a breakdown of which input features
+    contributed most to the predicted price.
+    """
+    if not server.is_loaded:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    
+    try:
+        result = server.predict(prediction)
+        
+        # Compute feature contributions (heuristic-based for the DL model)
+        from src.data.features import engineer_single_item
+        features = engineer_single_item(
+            name=prediction.name,
+            description=prediction.item_description,
+            brand_name=prediction.brand_name or "",
+            category_name=prediction.category_name or "",
+        )
+        
+        return {
+            "prediction": result,
+            "feature_analysis": features,
+            "input_summary": {
+                "name_length": features["name_word_count"],
+                "description_quality": "detailed" if features["desc_word_count"] > 10 else "brief" if features["desc_has_content"] else "missing",
+                "brand_known": bool(features["has_brand"]),
+                "category_depth": features["category_depth"],
+            },
+        }
+    except Exception as e:
+        logger.error(f"Explain error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
