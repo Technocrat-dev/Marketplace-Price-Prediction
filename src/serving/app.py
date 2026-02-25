@@ -12,6 +12,7 @@ Usage:
 
 import json
 import logging
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -20,8 +21,12 @@ from typing import Dict, Optional
 import numpy as np
 import torch
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from src.data.preprocess import (
     Vocabulary,
@@ -295,25 +300,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Rate Limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# Request Logging Middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log every request with method, path, status, and latency."""
+    start = time.time()
+    response = await call_next(request)
+    latency_ms = (time.time() - start) * 1000
+    
+    logger.info(
+        f"{request.method} {request.url.path} "
+        f"status={response.status_code} "
+        f"latency={latency_ms:.1f}ms "
+        f"client={request.client.host if request.client else 'unknown'}"
+    )
+    
+    response.headers["X-Response-Time"] = f"{latency_ms:.1f}ms"
+    return response
+
 
 @app.post("/predict", response_model=PredictionResponse)
-async def predict(request: PredictionRequest):
+@limiter.limit("60/minute")
+async def predict(request: Request, prediction: PredictionRequest):
     """Predict the price of a single product."""
     if not server.is_loaded:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:
-        result = server.predict(request)
+        result = server.predict(prediction)
         
         # Persist prediction to MongoDB (non-blocking, non-fatal)
         if server.prediction_repo:
             try:
                 server.prediction_repo.insert_one({
-                    "product_name": request.name,
-                    "brand": request.brand_name or "unknown",
-                    "category": request.category_name,
-                    "condition": request.item_condition_id,
-                    "shipping": request.shipping,
+                    "product_name": prediction.name,
+                    "brand": prediction.brand_name or "unknown",
+                    "category": prediction.category_name,
+                    "condition": prediction.item_condition_id,
+                    "shipping": prediction.shipping,
                     "predicted_price": result.predicted_price,
                     "predicted_log_price": result.predicted_log_price,
                     "confidence_low": result.confidence_range["low"],
@@ -330,13 +360,14 @@ async def predict(request: PredictionRequest):
 
 
 @app.post("/predict/batch", response_model=BatchPredictionResponse)
-async def predict_batch(request: BatchPredictionRequest):
+@limiter.limit("10/minute")
+async def predict_batch(request: Request, batch: BatchPredictionRequest):
     """Predict prices for multiple products (max 100)."""
     if not server.is_loaded:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     try:
-        predictions = server.predict_batch(request.items)
+        predictions = server.predict_batch(batch.items)
         return BatchPredictionResponse(
             predictions=predictions,
             count=len(predictions),
