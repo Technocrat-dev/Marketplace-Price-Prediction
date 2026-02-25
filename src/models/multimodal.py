@@ -159,7 +159,7 @@ class MercariPricePredictor(nn.Module):
         )                                                          # [B, fusion_in]
         
         # Predict
-        output = self.fusion_head(combined).squeeze(1)             # [B]
+        output = self.fusion_head(combined)[:, 0]                  # [B]
         
         return output
     

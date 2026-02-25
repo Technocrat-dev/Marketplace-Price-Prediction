@@ -100,10 +100,11 @@ def export_to_onnx(
     dummy_ship = torch.tensor([1.0]).unsqueeze(0) if batch_size == 1 else torch.ones(batch_size)
     dummy_ship = torch.ones(batch_size)
     
-    # Export
-    print(f"\n[INFO] Exporting to ONNX: {output_path}")
+    # Trace the model first (handles LSTM ops correctly)
+    traced = torch.jit.trace(wrapper, (dummy_name, dummy_desc, dummy_cats, dummy_ship))
+    
     torch.onnx.export(
-        wrapper,
+        traced,
         (dummy_name, dummy_desc, dummy_cats, dummy_ship),
         output_path,
         input_names=["name_seq", "desc_seq", "categoricals", "shipping"],
@@ -117,6 +118,7 @@ def export_to_onnx(
         },
         opset_version=17,
         do_constant_folding=True,
+        dynamo=False,
     )
     
     print(f"  ONNX file size: {Path(output_path).stat().st_size / 1024:.1f} KB")
