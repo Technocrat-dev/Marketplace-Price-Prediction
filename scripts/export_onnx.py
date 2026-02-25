@@ -161,7 +161,7 @@ def _validate_onnx(
     
     # Compare
     max_diff = np.max(np.abs(pytorch_out - onnx_out))
-    print(f"\n[VALIDATION] PyTorch vs ONNX:")
+    print("\n[VALIDATION] PyTorch vs ONNX:")
     print(f"  PyTorch output: {pytorch_out.flatten()[:3]}")
     print(f"  ONNX output:    {onnx_out.flatten()[:3]}")
     print(f"  Max difference: {max_diff:.8f}")

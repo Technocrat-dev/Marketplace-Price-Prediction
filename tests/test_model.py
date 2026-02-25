@@ -13,10 +13,8 @@ Tests:
 import json
 from pathlib import Path
 
-import numpy as np
 import pytest
 import torch
-import torch.nn as nn
 
 from src.models.text_encoder import TextEncoder
 from src.models.tabular_encoder import TabularEncoder

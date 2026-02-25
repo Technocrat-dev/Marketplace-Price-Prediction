@@ -11,7 +11,7 @@ Into a single prediction of log1p(price).
 
 import torch
 import torch.nn as nn
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from src.models.text_encoder import TextEncoder
 from src.models.tabular_encoder import TabularEncoder

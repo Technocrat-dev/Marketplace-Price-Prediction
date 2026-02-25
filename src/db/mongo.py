@@ -16,7 +16,6 @@ import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-import numpy as np
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.collection import Collection
 from pymongo.database import Database

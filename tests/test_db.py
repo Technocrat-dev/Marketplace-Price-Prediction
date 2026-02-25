@@ -8,7 +8,6 @@ Skip condition: If MongoDB is not running, all tests are skipped gracefully.
 """
 
 import pytest
-from datetime import datetime, timezone
 
 # Try to import and connect — skip all tests if MongoDB unavailable
 try:

@@ -51,7 +51,7 @@ def main():
     
     # Ingest
     tsv_path = str(Path(cfg["paths"]["raw_data"]) / cfg["data"]["train_file"])
-    count = ingest_training_data(
+    ingest_training_data(
         db=client.db,
         tsv_path=tsv_path,
         max_rows=args.limit,

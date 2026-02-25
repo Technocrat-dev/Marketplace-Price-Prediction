@@ -32,7 +32,7 @@ def explain_baselines(data_dir: Path, n_samples: int = 50) -> dict:
     # Load data
     tabular_test = np.load(data_dir / "test_tabular.npy")
     X_test = tabular_test[:, :-1]
-    y_test = tabular_test[:, -1]
+    tabular_test[:, -1]
     
     tabular_train = np.load(data_dir / "train_tabular.npy")
     X_train = tabular_train[:, :-1]
@@ -86,7 +86,7 @@ def explain_baselines(data_dir: Path, n_samples: int = 50) -> dict:
             "n_samples": n_samples,
         }
         
-        print(f"[SUCCESS] XGBoost SHAP completed")
+        print("[SUCCESS] XGBoost SHAP completed")
         print(f"  Top features: {list(importance.items())[:3]}")
         
     except ImportError:

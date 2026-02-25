@@ -15,7 +15,6 @@ import json
 import sys
 from pathlib import Path
 
-import numpy as np
 import optuna
 import torch
 import yaml
@@ -93,7 +92,7 @@ def objective(trial: optuna.Trial, cfg: dict, metadata: dict,
     # Train with pruning callback
     num_epochs = cfg["training"].get("num_epochs", 15)
     for epoch in range(1, num_epochs + 1):
-        train_loss = trainer.train_epoch()
+        trainer.train_epoch()
         val_loss = trainer.validate_epoch()
         
         # Report to Optuna for pruning

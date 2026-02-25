@@ -7,7 +7,7 @@ via learned embeddings, and continuous features (shipping) via linear projection
 
 import torch
 import torch.nn as nn
-from typing import Dict, List
+from typing import Dict
 
 
 class TabularEncoder(nn.Module):
