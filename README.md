@@ -1,5 +1,7 @@
 # PriceScope — Marketplace Price Prediction Engine
 
+[![CI](https://github.com/Technocrat-dev/Marketplace-Price-Prediction/actions/workflows/ci.yml/badge.svg)](https://github.com/Technocrat-dev/Marketplace-Price-Prediction/actions)
+
 A **multimodal deep learning system** that predicts marketplace product prices by analyzing text descriptions, brand reputation, category context, and item condition. Trained on **1.48 million** real Mercari listings.
 
 ## Architecture
@@ -29,7 +31,7 @@ A **multimodal deep learning system** that predicts marketplace product prices b
                    └─────────────┘
 ```
 
-**Stack:** PyTorch · FastAPI · MongoDB · ONNX Runtime · Next.js · Recharts
+**Stack:** PyTorch · FastAPI · MongoDB · ONNX Runtime · Next.js · Recharts · XGBoost · Optuna · SHAP
 
 ## Quick Start
 
@@ -132,6 +134,49 @@ curl -X POST http://localhost:8000/predict/batch \
 curl http://localhost:8000/health
 ```
 
+### `GET /model/info` — Model Architecture & Metrics
+
+Returns training metrics, loss curves, architecture summary, and config.
+
+```bash
+curl http://localhost:8000/model/info
+```
+
+### `GET /products/search` — Search Product Catalog
+
+```bash
+curl "http://localhost:8000/products/search?q=nike+shoes&limit=10"
+```
+
+### `GET /products/stats` — Catalog Statistics
+
+```bash
+curl http://localhost:8000/products/stats
+```
+
+### `GET /predictions/recent` — Prediction History
+
+```bash
+curl "http://localhost:8000/predictions/recent?limit=20"
+```
+
+### `POST /predict/csv` — CSV Batch Upload (up to 500 rows)
+
+```bash
+curl -X POST http://localhost:8000/predict/csv \
+  -F "file=@products.csv"
+```
+
+### `POST /predict/explain` — Prediction with Feature Analysis
+
+Returns the prediction plus a per-feature contribution breakdown.
+
+```bash
+curl -X POST http://localhost:8000/predict/explain \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Nike Air Max 90", "brand_name": "Nike"}'
+```
+
 ## Docker Deployment
 
 ```bash
@@ -160,15 +205,19 @@ This starts three services:
 │   └── src/lib/api.ts       # API client
 ├── scripts/
 │   ├── train.py             # Training entry point
+│   ├── train_baselines.py   # XGBoost / LightGBM / Ridge baselines
+│   ├── tune.py              # Optuna hyperparameter search
+│   ├── explain.py           # SHAP feature explanations
 │   ├── ingest_data.py       # MongoDB data ingestion
 │   └── export_onnx.py       # ONNX model export
 ├── src/
-│   ├── data/                # Dataset & preprocessing pipeline
+│   ├── data/                # Dataset, preprocessing, feature engineering
 │   ├── db/                  # MongoDB repositories
-│   ├── models/              # BiLSTM + TabularEncoder + Fusion MLP
-│   ├── serving/             # FastAPI app + Pydantic schemas
+│   ├── models/              # BiLSTM + Attention + TabularEncoder + Fusion MLP
+│   ├── serving/             # FastAPI app + schemas + rate limiting
 │   └── training/            # Trainer + evaluation metrics
 ├── tests/                   # 88+ unit tests (pytest)
+├── .github/workflows/       # CI: test + lint + Docker build
 ├── Dockerfile               # Multi-stage API container
 ├── docker-compose.yml       # Full stack orchestration
 ├── requirements.txt         # Python dependencies
@@ -200,18 +249,42 @@ python -m pytest tests/ --cov=src --cov-report=term-missing
 python -m pytest tests/test_serving.py -v
 ```
 
+## ML Engineering Scripts
+
+```bash
+# Train baseline models (XGBoost, LightGBM, Ridge)
+python scripts/train_baselines.py
+
+# Optuna hyperparameter search
+python scripts/tune.py --n-trials 30
+
+# Generate SHAP feature explanations
+python scripts/explain.py --sample 100
+```
+
 ## Configuration
 
 All hyperparameters are in `config/config.yaml`:
 
-| Section    | Key Parameters                           |
-|------------|------------------------------------------|
-| `paths`    | Data directories, output paths           |
-| `data`     | Max sequence lengths, vocab min frequency |
-| `model`    | Embedding dims, hidden dims, dropout     |
-| `training` | Batch size, learning rate, epochs        |
-| `serving`  | Host, port, model version                |
-| `database` | MongoDB URI, database name               |
+| Section    | Key Parameters                                    |
+|------------|---------------------------------------------------|
+| `paths`    | Data directories, output paths                    |
+| `data`     | Max sequence lengths, vocab min frequency          |
+| `model`    | Embedding dims, hidden dims, dropout, attention    |
+| `training` | Batch size, learning rate, epochs, scheduler       |
+| `serving`  | Host, port, model version, API key, cache settings |
+| `database` | MongoDB URI, database name                         |
+
+## API Features
+
+| Feature             | Description                                    |
+|---------------------|------------------------------------------------|
+| Rate limiting       | 60/min on predict, 10/min on batch             |
+| Request logging     | Method, path, latency, client IP per request   |
+| LRU response cache  | Deduplicates identical predictions via MD5     |
+| API key auth        | Optional `X-API-Key` header (configurable)     |
+| CSV batch upload    | Upload CSV file for batch predictions          |
+| Feature explanation | Per-feature contribution breakdown             |
 
 ## License
 
