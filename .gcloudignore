@@ -1,0 +1,44 @@
+# Cloud Build upload ignore
+# Controls what gets uploaded to Cloud Build (NOT the same as .dockerignore)
+
+# Version control
+.git/
+.github/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Frontend (built separately)
+frontend/
+
+# Raw data (not needed for serving)
+data/raw/
+
+# Processed training data (only JSON metadata needed)
+data/processed/*.pkl
+data/processed/*.npy
+
+# Epoch checkpoints (only best_model.pt needed)
+outputs/checkpoints/epoch_*.pt
+outputs/eda/
+outputs/*.png
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docs
+docs/
+README.md
+
+# Docker Compose (not needed for Cloud Build)
+docker-compose.yml
+docker-compose.override.yml

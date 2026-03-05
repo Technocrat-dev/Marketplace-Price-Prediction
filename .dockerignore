@@ -1,0 +1,42 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.egg-info
+venv/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Data (too large, not needed for serving)
+data/raw/
+data/processed/*.pkl
+data/processed/*.npy
+
+# Model checkpoints (only best_model.pt is needed — copied explicitly)
+outputs/checkpoints/epoch_*.pt
+outputs/eda/
+outputs/*.png
+
+# Frontend (has its own Dockerfile)
+frontend/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docs
+docs/
+README.md
+
+# Docker
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile

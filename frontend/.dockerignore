@@ -1,0 +1,15 @@
+# Dependencies (reinstalled in Docker)
+node_modules/
+
+# Next.js build output
+.next/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docs
+README.md
