@@ -1,0 +1,12 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_API_URL=https://pricescope-api-773627441383.us-central1.run.app'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/pricescope-489206/pricescope-repo/frontend:latest'
+      - '.'
+images:
+  - 'us-central1-docker.pkg.dev/pricescope-489206/pricescope-repo/frontend:latest'
+timeout: '600s'
