@@ -32,6 +32,15 @@ COPY scripts/ scripts/
 # Create directories for data and outputs
 RUN mkdir -p data/raw data/processed outputs/checkpoints
 
+# Copy model checkpoint and preprocessing artifacts
+# These are required for inference and must exist locally
+COPY outputs/checkpoints/best_model.pt outputs/checkpoints/best_model.pt
+COPY outputs/training_results.json outputs/training_results.json
+COPY data/processed/metadata.json data/processed/metadata.json
+COPY data/processed/name_vocab.json data/processed/name_vocab.json
+COPY data/processed/desc_vocab.json data/processed/desc_vocab.json
+COPY data/processed/cat_encoder.json data/processed/cat_encoder.json
+
 # Expose API port
 EXPOSE 8000
 
