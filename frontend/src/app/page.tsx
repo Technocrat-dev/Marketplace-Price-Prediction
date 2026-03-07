@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import styles from './page.module.css';
 import { predictPrice, formatPrice, CONDITIONS, type PredictionResponse } from '@/lib/api';
 
 export default function PredictPage() {
+  const { data: session } = useSession();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -30,7 +32,7 @@ export default function PredictPage() {
         brand_name: brand || 'unknown',
         item_condition_id: condition,
         shipping,
-      });
+      }, session?.user?.email || undefined);
       setResult(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Prediction failed');

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, Legend,
@@ -50,6 +51,7 @@ export default function DashboardPage() {
     const [predictions, setPredictions] = useState<RecentPredictionItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const { data: session } = useSession();
 
     useEffect(() => {
         setMounted(true);
@@ -58,7 +60,7 @@ export default function DashboardPage() {
             try {
                 const [info, recent] = await Promise.allSettled([
                     fetchModelInfo(),
-                    fetchRecentPredictions(10),
+                    fetchRecentPredictions(10, session?.user?.email || undefined),
                 ]);
 
                 if (info.status === 'fulfilled') setModelInfo(info.value);
@@ -71,7 +73,7 @@ export default function DashboardPage() {
         }
 
         loadData();
-    }, []);
+    }, [session]);
 
     const metrics = modelInfo ? {
         rmsle: modelInfo.test_metrics.rmsle?.toFixed(3) || '—',
@@ -186,7 +188,14 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Recent Predictions */}
-                {predictions.length > 0 && (
+                {!session ? (
+                    <div className={styles.section}>
+                        <h3 className={styles.sectionTitle}>Recent Predictions</h3>
+                        <div className={styles.chartPlaceholder} style={{ padding: '40px 20px', textAlign: 'center', color: '#8888A0' }}>
+                            Sign in to see your prediction history
+                        </div>
+                    </div>
+                ) : predictions.length > 0 ? (
                     <div className={styles.section}>
                         <h3 className={styles.sectionTitle}>Recent Predictions</h3>
                         <div className={styles.predictionTable}>
@@ -210,6 +219,13 @@ export default function DashboardPage() {
                                     </span>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className={styles.section}>
+                        <h3 className={styles.sectionTitle}>Recent Predictions</h3>
+                        <div className={styles.chartPlaceholder} style={{ padding: '40px 20px', textAlign: 'center', color: '#8888A0' }}>
+                            No predictions yet — try the Predict page!
                         </div>
                     </div>
                 )}

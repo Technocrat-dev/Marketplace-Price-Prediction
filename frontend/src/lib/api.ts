@@ -103,10 +103,13 @@ export interface RecentPredictionsResponse {
 // API Functions
 // =========================================================================
 
-export async function predictPrice(data: PredictionRequest): Promise<PredictionResponse> {
+export async function predictPrice(data: PredictionRequest, userId?: string): Promise<PredictionResponse> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (userId) headers['X-User-Id'] = userId;
+
     const res = await fetch(`${API_BASE}/predict`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(data),
     });
     if (!res.ok) {
@@ -141,8 +144,10 @@ export async function fetchProductStats(): Promise<ProductStatsResponse> {
     return res.json();
 }
 
-export async function fetchRecentPredictions(limit: number = 20): Promise<RecentPredictionsResponse> {
-    const res = await fetch(`${API_BASE}/predictions/recent?limit=${limit}`);
+export async function fetchRecentPredictions(limit: number = 20, userId?: string): Promise<RecentPredictionsResponse> {
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (userId) params.set('user_id', userId);
+    const res = await fetch(`${API_BASE}/predictions/recent?${params}`);
     if (!res.ok) throw new Error(`Recent predictions failed: ${res.status}`);
     return res.json();
 }

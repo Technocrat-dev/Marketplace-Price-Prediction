@@ -92,6 +92,65 @@
     }
 }
 
+/* Auth Section */
+.authSection {
+    display: flex;
+    align-items: center;
+}
+
+.userMenu {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    object-fit: cover;
+}
+
+.userName {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.signInBtn {
+    padding: 6px 16px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--accent), #a855f7);
+    color: white;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.signInBtn:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.signOutBtn {
+    padding: 4px 12px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.signOutBtn:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+}
+
 /* Hamburger button — hidden on desktop */
 .hamburger {
     display: none;
