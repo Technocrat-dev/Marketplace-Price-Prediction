@@ -436,7 +436,8 @@ async def predict(request: Request, prediction: PredictionRequest):
         # Persist prediction to MongoDB (non-blocking, non-fatal)
         if server.prediction_repo:
             try:
-                server.prediction_repo.insert_one({
+                user_id = request.headers.get("X-User-Id")
+                doc = {
                     "product_name": prediction.name,
                     "brand": prediction.brand_name or "unknown",
                     "category": prediction.category_name,
@@ -447,7 +448,10 @@ async def predict(request: Request, prediction: PredictionRequest):
                     "confidence_low": result.confidence_range["low"],
                     "confidence_high": result.confidence_range["high"],
                     "model_version": server.config["serving"]["model_version"],
-                })
+                }
+                if user_id:
+                    doc["user_id"] = user_id
+                server.prediction_repo.insert_one(doc)
             except Exception as db_err:
                 logger.warning(f"Failed to persist prediction: {db_err}")
         
@@ -640,13 +644,16 @@ async def product_stats():
 # =========================================================================
 
 @app.get("/predictions/recent", response_model=RecentPredictionsResponse)
-async def recent_predictions(limit: int = Query(default=20, ge=1, le=100)):
-    """Get the most recent predictions."""
+async def recent_predictions(
+    limit: int = Query(default=20, ge=1, le=100),
+    user_id: str = Query(default=None),
+):
+    """Get the most recent predictions, optionally filtered by user."""
     if not server.prediction_repo:
         raise HTTPException(status_code=503, detail="MongoDB not available")
     
     try:
-        results = server.prediction_repo.find_latest(limit=limit)
+        results = server.prediction_repo.find_latest(limit=limit, user_id=user_id)
         predictions = []
         for doc in results:
             predictions.append(RecentPredictionItem(

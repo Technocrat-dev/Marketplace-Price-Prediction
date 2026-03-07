@@ -313,9 +313,10 @@ class PredictionRepository:
         ).sort("predicted_at", DESCENDING)
         return list(cursor)
     
-    def find_latest(self, limit: int = 20) -> List[Dict]:
-        """Get the most recent predictions."""
-        cursor = self.collection.find().sort(
+    def find_latest(self, limit: int = 20, user_id: str = None) -> List[Dict]:
+        """Get the most recent predictions, optionally filtered by user."""
+        query = {"user_id": user_id} if user_id else {}
+        cursor = self.collection.find(query).sort(
             "predicted_at", DESCENDING
         ).limit(limit)
         return list(cursor)
