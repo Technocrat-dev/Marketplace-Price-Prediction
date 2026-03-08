@@ -126,6 +126,7 @@ jobs:
             --min-instances 0 \
             --max-instances 2 \
             --allow-unauthenticated \
+            --set-env-vars="AUTH_GOOGLE_ID=${{ secrets.AUTH_GOOGLE_ID }},AUTH_GOOGLE_SECRET=${{ secrets.AUTH_GOOGLE_SECRET }},AUTH_SECRET=${{ secrets.AUTH_SECRET }},AUTH_URL=https://pricescope-frontend-773627441383.us-central1.run.app,AUTH_TRUST_HOST=true" \
             --quiet
 
       - name: Output deployment URLs
