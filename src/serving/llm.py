@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash"
 DEFAULT_MAX_TOKENS = 2048
 
 SYSTEM_PROMPT = """You are a pricing analyst for a US peer-to-peer marketplace \
