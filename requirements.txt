@@ -1,5 +1,9 @@
 # Core ML
 torch>=2.0.0
+transformers>=4.40.0
+
+# LLM Listing Analysis
+anthropic>=0.117.0
 
 # Baselines
 xgboost>=2.0.0

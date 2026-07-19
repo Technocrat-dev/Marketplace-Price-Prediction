@@ -10,6 +10,8 @@ A production-grade multimodal deep learning system that predicts marketplace pro
 
 Trained on **1.48 million** Mercari product listings, achieving **0.430 RMSLE** on held-out test data with a model that fuses bidirectional LSTMs (with optional self-attention) for text understanding and learned categorical embeddings for structured features.
 
+Beyond the core model, the project includes a **fine-tunable DistilBERT comparison** (same splits and objective, so classic-vs-transformer trade-offs are measured, not assumed) and a **Claude-powered listing analysis** endpoint that pairs the ML price estimate with an LLM's independent estimate and a structured listing critique.
+
 ---
 
 ## Table of Contents
@@ -126,6 +128,20 @@ Input Layer
 | Ridge Regression | 0.612   | $14.80   | 0.221     | 0.3s       |
 
 The deep learning model outperforms all tabular baselines because it can extract semantic signals from free-text product names and descriptions that tree-based models cannot access.
+
+### Transformer Comparison
+
+The repo also includes a fine-tunable **DistilBERT** variant ([`scripts/train_transformer.py`](scripts/train_transformer.py)) that swaps the BiLSTM text branches for a pretrained transformer over `name [SEP] description`, fused with the identical tabular encoder, splits, and RMSLE objective — so the two architectures are directly comparable:
+
+```bash
+# Full run (GPU recommended); results land in outputs/transformer_results.json
+python scripts/train_transformer.py --epochs 2
+
+# CPU smoke test on a subsample
+python scripts/train_transformer.py --sample 3000 --epochs 1
+```
+
+The trade-off being measured: DistilBERT (~66M encoder parameters) brings pretrained language understanding at ~10x the inference latency and memory of the 15.2M-parameter BiLSTM. For a high-throughput pricing API, accuracy-per-millisecond matters as much as raw RMSLE — this script produces the numbers to make that call explicitly. After a full GPU run, add the `DistilBERT + Tabular` row from `outputs/transformer_results.json` to the table above.
 
 ### Dataset
 
@@ -267,6 +283,34 @@ curl -X POST http://localhost:8000/predict/explain \
   -d '{"name": "Nike Air Max 90", "brand_name": "Nike"}'
 ```
 
+### POST /predict/analyze -- AI listing analysis (Claude)
+
+Runs the trained model, then asks Claude for an independent price estimate and a structured critique of the listing — quality score, strengths, concrete improvements, and an optional better title. The response compares both estimates and flags how strongly they agree.
+
+```bash
+curl -X POST http://localhost:8000/predict/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Nike Air Max 90", "brand_name": "Nike", "item_description": "Barely worn"}'
+```
+
+```json
+{
+  "prediction": { "predicted_price": 22.50, "...": "..." },
+  "ai_analysis": {
+    "llm_estimated_price": 25.0,
+    "price_reasoning": "...",
+    "listing_score": 6,
+    "strengths": ["Brand is specified"],
+    "improvements": ["Add size information", "Describe the condition in detail"],
+    "suggested_title": "Nike Air Max 90 - Men's Size 10, Good Condition"
+  },
+  "comparison": { "model_price": 22.5, "llm_price": 25.0, "delta_pct": 11.1, "agreement": "close" },
+  "llm_model": "claude-opus-4-8"
+}
+```
+
+Requires `ANTHROPIC_API_KEY` in the server environment (the endpoint returns 503 otherwise, and the frontend degrades gracefully). Model and token budget are configured under the `llm:` section of [`config/config.yaml`](config/config.yaml); responses use the Anthropic SDK's structured outputs, validated against a Pydantic schema.
+
 ### Other endpoints
 
 | Endpoint                | Method | Description                          |
@@ -281,7 +325,7 @@ curl -X POST http://localhost:8000/predict/explain \
 
 | Feature             | Detail                                            |
 |---------------------|---------------------------------------------------|
-| Rate limiting       | 60 req/min (predict), 10 req/min (batch)          |
+| Rate limiting       | 60 req/min (predict), 10 req/min (batch, analyze) |
 | Response caching    | LRU cache with TTL, keyed by MD5 of request       |
 | API key auth        | Optional `X-API-Key` header (set in config)       |
 | Request logging     | Method, path, latency, client IP per request      |
@@ -307,6 +351,7 @@ Marketplace-Price-Prediction/
   scripts/
     train.py                  Training entry point with checkpointing
     train_baselines.py        XGBoost, LightGBM, Ridge baselines
+    train_transformer.py      DistilBERT + tabular fine-tuning comparison
     tune.py                   Optuna hyperparameter search with pruning
     explain.py                SHAP feature importance analysis
     ingest_data.py            MongoDB data ingestion
@@ -315,7 +360,9 @@ Marketplace-Price-Prediction/
     data/                     Dataset, preprocessing, feature engineering
     db/                       MongoDB client and repositories
     models/                   BiLSTM + Attention + TabularEncoder + Fusion
-    serving/                  FastAPI app, Pydantic schemas, middleware
+                              + DistilBERT transformer variant
+    serving/                  FastAPI app, Pydantic schemas, middleware,
+                              Claude listing analyzer (llm.py)
     training/                 Trainer loop, evaluation, metrics
   tests/                      Unit and integration tests (pytest)
   .github/workflows/ci.yml   CI: lint, test, Docker build, frontend build
@@ -371,10 +418,11 @@ All settings are centralized in [`config/config.yaml`](config/config.yaml):
 | `data`       | Max sequence lengths, vocabulary min frequency         |
 | `model`      | Embedding dims, hidden dims, dropout, attention toggle |
 | `training`   | Batch size, learning rate, epochs, scheduler, patience |
+| `llm`        | Anthropic model and token budget for `/predict/analyze` |
 | `serving`    | Host, port, model version, API key, cache TTL          |
 | `database`   | MongoDB URI, database name                             |
 
-Environment variable overrides for Docker: `MONGODB_URI`, `MONGODB_DB`.
+Environment variable overrides for Docker: `MONGODB_URI`, `MONGODB_DB`, `ANTHROPIC_API_KEY` (enables AI analysis), `ANTHROPIC_MODEL` (optional model override).
 
 ---
 

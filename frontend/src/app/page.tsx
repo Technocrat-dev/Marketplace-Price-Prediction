@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import styles from './page.module.css';
-import { predictPrice, formatPrice, CONDITIONS, type PredictionResponse } from '@/lib/api';
+import { predictPrice, analyzeListing, formatPrice, CONDITIONS, type PredictionResponse, type AnalyzeResponse } from '@/lib/api';
 
 export default function PredictPage() {
   const { data: session } = useSession();
@@ -16,6 +16,9 @@ export default function PredictPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<PredictionResponse | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<AnalyzeResponse | null>(null);
+  const [analysisError, setAnalysisError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +26,8 @@ export default function PredictPage() {
 
     setLoading(true);
     setError('');
+    setAnalysis(null);
+    setAnalysisError('');
 
     try {
       const response = await predictPrice({
@@ -40,6 +45,36 @@ export default function PredictPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAnalyze = async () => {
+    if (!name.trim() || analyzing) return;
+
+    setAnalyzing(true);
+    setAnalysisError('');
+
+    try {
+      const response = await analyzeListing({
+        name,
+        item_description: description,
+        category_name: category,
+        brand_name: brand || 'unknown',
+        item_condition_id: condition,
+        shipping,
+      });
+      setAnalysis(response);
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : 'AI analysis failed');
+      setAnalysis(null);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const agreementLabel: Record<string, string> = {
+    close: 'Models agree',
+    moderate: 'Some disagreement',
+    divergent: 'Models disagree',
   };
 
   return (
@@ -216,9 +251,96 @@ export default function PredictPage() {
                       </div>
                     ))}
                   </div>
+
+                  {!analysis && (
+                    <button
+                      type="button"
+                      className={styles.analyzeBtn}
+                      onClick={handleAnalyze}
+                      disabled={analyzing}
+                    >
+                      {analyzing ? 'Asking Claude...' : '✦ Get AI Listing Analysis'}
+                    </button>
+                  )}
+
+                  {analysisError && (
+                    <div className={styles.analysisError}>{analysisError}</div>
+                  )}
                 </>
               )}
             </div>
+
+            {analysis && !loading && (
+              <div className={styles.analysisCard} aria-live="polite">
+                <div className={styles.analysisHeader}>
+                  <span className={styles.analysisTitle}>✦ AI Listing Analysis</span>
+                  <span className={styles.analysisScore}>
+                    {analysis.ai_analysis.listing_score}/10
+                  </span>
+                </div>
+
+                <div className={styles.comparisonRow}>
+                  <div className={styles.comparisonCol}>
+                    <div className={styles.comparisonLabel}>ML Model</div>
+                    <div className={styles.comparisonValue}>
+                      {formatPrice(analysis.comparison.model_price)}
+                    </div>
+                  </div>
+                  <div className={styles.comparisonCol}>
+                    <div className={styles.comparisonLabel}>Claude</div>
+                    <div className={styles.comparisonValue}>
+                      {formatPrice(analysis.comparison.llm_price)}
+                    </div>
+                  </div>
+                  <span
+                    className={`${styles.agreementBadge} ${
+                      styles[`agreement_${analysis.comparison.agreement}`] || ''
+                    }`}
+                  >
+                    {agreementLabel[analysis.comparison.agreement] || analysis.comparison.agreement}
+                  </span>
+                </div>
+
+                <p className={styles.analysisReasoning}>
+                  {analysis.ai_analysis.price_reasoning}
+                </p>
+
+                {analysis.ai_analysis.strengths.length > 0 && (
+                  <div className={styles.analysisSection}>
+                    <div className={styles.analysisSectionLabel}>Strengths</div>
+                    <ul className={styles.analysisList}>
+                      {analysis.ai_analysis.strengths.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {analysis.ai_analysis.improvements.length > 0 && (
+                  <div className={styles.analysisSection}>
+                    <div className={styles.analysisSectionLabel}>Improve your listing</div>
+                    <ul className={styles.analysisList}>
+                      {analysis.ai_analysis.improvements.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {analysis.ai_analysis.suggested_title && (
+                  <div className={styles.analysisSection}>
+                    <div className={styles.analysisSectionLabel}>Suggested title</div>
+                    <div className={styles.suggestedTitle}>
+                      &ldquo;{analysis.ai_analysis.suggested_title}&rdquo;
+                    </div>
+                  </div>
+                )}
+
+                <div className={styles.analysisFooter}>
+                  Powered by {analysis.llm_model}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

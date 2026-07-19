@@ -72,6 +72,12 @@ database:
     products: "products"
     predictions: "predictions"
 
+# --- LLM Listing Analysis ---
+llm:
+  model: "claude-opus-4-8"       # Anthropic model for /predict/analyze
+  max_tokens: 2048               # response budget for the analysis
+  # The feature activates only when ANTHROPIC_API_KEY is set in the environment
+
 # --- Serving ---
 serving:
   host: "0.0.0.0"

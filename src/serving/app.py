@@ -40,6 +40,7 @@ from src.data.preprocess import (
     parse_category,
 )
 from src.models.multimodal import MercariPricePredictor
+from src.serving.llm import ListingAnalyzer, build_comparison
 from src.serving.schemas import (
     PredictionRequest,
     PredictionResponse,
@@ -288,6 +289,9 @@ class ModelServer:
 # Global model server instance
 server = ModelServer()
 
+# Claude-powered listing analyzer (reconfigured from config at startup)
+analyzer = ListingAnalyzer()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -296,6 +300,8 @@ async def lifespan(app: FastAPI):
     try:
         server.load()
         _load_api_key()
+        global analyzer
+        analyzer = ListingAnalyzer(server.config)
         # Configure cache from config
         serving_cfg = server.config.get("serving", {})
         prediction_cache.maxsize = serving_cfg.get("cache_maxsize", 1024)
@@ -499,6 +505,7 @@ async def health_check():
         model_version=server.config["serving"]["model_version"] if server.config else "unknown",
         model_loaded=server.is_loaded,
         mongodb_status=mongo_status,
+        llm_enabled=analyzer.enabled,
         timestamp=datetime.now(timezone.utc),
     )
 
@@ -742,6 +749,49 @@ async def predict_csv(request: Request, file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"CSV prediction error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# =========================================================================
+# AI Listing Analysis Endpoint (Claude)
+# =========================================================================
+
+@app.post("/predict/analyze")
+@limiter.limit("10/minute")
+async def predict_analyze(request: Request, prediction: PredictionRequest):
+    """
+    Predict price and get an AI-powered listing analysis.
+
+    Runs the trained model, then asks Claude for an independent price
+    estimate and a critique of the listing (quality score, strengths,
+    improvements). Returns both estimates with a comparison.
+
+    Requires ANTHROPIC_API_KEY to be configured on the server.
+    """
+    if not server.is_loaded:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+
+    if not analyzer.enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="AI analysis is not available: ANTHROPIC_API_KEY is not configured",
+        )
+
+    result = server.predict(prediction)
+
+    try:
+        analysis = await analyzer.analyze(prediction, result)
+    except Exception as e:
+        logger.error(f"AI analysis error: {e}")
+        raise HTTPException(status_code=502, detail=f"AI analysis failed: {e}")
+
+    return {
+        "prediction": result,
+        "ai_analysis": analysis.model_dump(),
+        "comparison": build_comparison(
+            result.predicted_price, analysis.llm_estimated_price
+        ),
+        "llm_model": analyzer.model,
+    }
 
 
 # =========================================================================

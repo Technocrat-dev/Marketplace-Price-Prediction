@@ -21,7 +21,33 @@ export interface HealthResponse {
     model_version: string;
     model_loaded: boolean;
     mongodb_status: string;
+    llm_enabled?: boolean;
     timestamp: string;
+}
+
+// --- AI Listing Analysis ---
+export interface AIAnalysis {
+    llm_estimated_price: number;
+    price_reasoning: string;
+    listing_score: number;
+    strengths: string[];
+    improvements: string[];
+    suggested_title?: string | null;
+}
+
+export interface PriceComparison {
+    model_price: number;
+    llm_price: number;
+    delta: number;
+    delta_pct: number;
+    agreement: 'close' | 'moderate' | 'divergent';
+}
+
+export interface AnalyzeResponse {
+    prediction: PredictionResponse;
+    ai_analysis: AIAnalysis;
+    comparison: PriceComparison;
+    llm_model: string;
 }
 
 // --- Model Info ---
@@ -110,6 +136,19 @@ export async function predictPrice(data: PredictionRequest, userId?: string): Pr
     const res = await fetch(`${API_BASE}/predict`, {
         method: 'POST',
         headers,
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function analyzeListing(data: PredictionRequest): Promise<AnalyzeResponse> {
+    const res = await fetch(`${API_BASE}/predict/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
     });
     if (!res.ok) {

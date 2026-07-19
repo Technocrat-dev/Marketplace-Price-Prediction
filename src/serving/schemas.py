@@ -101,6 +101,7 @@ class HealthResponse(BaseModel):
     model_version: str
     model_loaded: bool
     mongodb_status: str
+    llm_enabled: bool = False
     timestamp: datetime
 
 
