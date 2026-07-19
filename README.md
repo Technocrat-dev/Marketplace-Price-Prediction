@@ -10,7 +10,7 @@ A production-grade multimodal deep learning system that predicts marketplace pro
 
 Trained on **1.48 million** Mercari product listings, achieving **0.430 RMSLE** on held-out test data with a model that fuses bidirectional LSTMs (with optional self-attention) for text understanding and learned categorical embeddings for structured features.
 
-Beyond the core model, the project includes a **fine-tunable DistilBERT comparison** (same splits and objective, so classic-vs-transformer trade-offs are measured, not assumed) and a **Claude-powered listing analysis** endpoint that pairs the ML price estimate with an LLM's independent estimate and a structured listing critique.
+Beyond the core model, the project includes a **fine-tunable DistilBERT comparison** (same splits and objective, so classic-vs-transformer trade-offs are measured, not assumed) and an **LLM-powered listing analysis** endpoint (Gemini or Claude, pluggable) that pairs the ML price estimate with an LLM's independent estimate and a structured listing critique.
 
 ---
 
@@ -283,9 +283,9 @@ curl -X POST http://localhost:8000/predict/explain \
   -d '{"name": "Nike Air Max 90", "brand_name": "Nike"}'
 ```
 
-### POST /predict/analyze -- AI listing analysis (Claude)
+### POST /predict/analyze -- AI listing analysis (LLM)
 
-Runs the trained model, then asks Claude for an independent price estimate and a structured critique of the listing — quality score, strengths, concrete improvements, and an optional better title. The response compares both estimates and flags how strongly they agree.
+Runs the trained model, then asks an LLM for an independent price estimate and a structured critique of the listing — quality score, strengths, concrete improvements, and an optional better title. The response compares both estimates and flags how strongly they agree.
 
 ```bash
 curl -X POST http://localhost:8000/predict/analyze \
@@ -305,11 +305,12 @@ curl -X POST http://localhost:8000/predict/analyze \
     "suggested_title": "Nike Air Max 90 - Men's Size 10, Good Condition"
   },
   "comparison": { "model_price": 22.5, "llm_price": 25.0, "delta_pct": 11.1, "agreement": "close" },
-  "llm_model": "claude-opus-4-8"
+  "llm_model": "gemini-2.5-flash",
+  "llm_provider": "gemini"
 }
 ```
 
-Requires `ANTHROPIC_API_KEY` in the server environment (the endpoint returns 503 otherwise, and the frontend degrades gracefully). Model and token budget are configured under the `llm:` section of [`config/config.yaml`](config/config.yaml); responses use the Anthropic SDK's structured outputs, validated against a Pydantic schema.
+The provider is pluggable behind a shared Pydantic output schema: set `GEMINI_API_KEY` ([free tier via Google AI Studio](https://aistudio.google.com)) or `ANTHROPIC_API_KEY` in the server environment — Gemini takes precedence if both are present, and the endpoint returns 503 (with the frontend degrading gracefully) when neither is set. Models and token budget are configured under the `llm:` section of [`config/config.yaml`](config/config.yaml); both providers use schema-constrained structured outputs.
 
 ### Other endpoints
 
@@ -362,7 +363,7 @@ Marketplace-Price-Prediction/
     models/                   BiLSTM + Attention + TabularEncoder + Fusion
                               + DistilBERT transformer variant
     serving/                  FastAPI app, Pydantic schemas, middleware,
-                              Claude listing analyzer (llm.py)
+                              LLM listing analyzer (llm.py)
     training/                 Trainer loop, evaluation, metrics
   tests/                      Unit and integration tests (pytest)
   .github/workflows/ci.yml   CI: lint, test, Docker build, frontend build
@@ -418,11 +419,11 @@ All settings are centralized in [`config/config.yaml`](config/config.yaml):
 | `data`       | Max sequence lengths, vocabulary min frequency         |
 | `model`      | Embedding dims, hidden dims, dropout, attention toggle |
 | `training`   | Batch size, learning rate, epochs, scheduler, patience |
-| `llm`        | Anthropic model and token budget for `/predict/analyze` |
+| `llm`        | Gemini/Anthropic models and token budget for `/predict/analyze` |
 | `serving`    | Host, port, model version, API key, cache TTL          |
 | `database`   | MongoDB URI, database name                             |
 
-Environment variable overrides for Docker: `MONGODB_URI`, `MONGODB_DB`, `ANTHROPIC_API_KEY` (enables AI analysis), `ANTHROPIC_MODEL` (optional model override).
+Environment variable overrides for Docker: `MONGODB_URI`, `MONGODB_DB`, `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` (enables AI analysis), `GEMINI_MODEL` / `ANTHROPIC_MODEL` (optional model overrides).
 
 ---
 

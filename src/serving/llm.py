@@ -1,15 +1,19 @@
 """
-Claude-powered listing analysis for the Mercari Price Prediction Engine.
+LLM-powered listing analysis for the Mercari Price Prediction Engine.
 
-Given a product listing and the ML model's price prediction, asks Claude for:
+Given a product listing and the ML model's price prediction, asks an LLM for:
 - an independent (zero-shot) price estimate with reasoning
 - a quality score and concrete critique of the listing itself
 
 The two estimates are compared so users can see when the trained model and
 the LLM agree — and when they don't.
 
-Requires the ANTHROPIC_API_KEY environment variable; the endpoint degrades
-gracefully (503) when it is not configured.
+Two interchangeable providers share the same structured-output schema:
+- GeminiAnalyzer    — activates when GEMINI_API_KEY is set (free tier available)
+- AnthropicAnalyzer — activates when ANTHROPIC_API_KEY is set
+
+`create_analyzer()` picks whichever is configured; the endpoint degrades
+gracefully (503) when neither key is present.
 """
 
 import logging
@@ -20,7 +24,8 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "claude-opus-4-8"
+DEFAULT_ANTHROPIC_MODEL = "claude-opus-4-8"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 DEFAULT_MAX_TOKENS = 2048
 
 SYSTEM_PROMPT = """You are a pricing analyst for a US peer-to-peer marketplace \
@@ -44,9 +49,12 @@ size, description too short to justify price).
 Be concrete and grounded in what actually drives resale prices: brand \
 recognition, condition, completeness of information, and category norms."""
 
+CONDITION_LABELS = {1: "New with tags", 2: "New without tags",
+                    3: "Good", 4: "Fair", 5: "Poor"}
+
 
 class ListingAnalysis(BaseModel):
-    """Structured output schema for Claude's listing analysis."""
+    """Structured output schema for the LLM's listing analysis."""
 
     llm_estimated_price: float = Field(
         description="Your independent price estimate in USD"
@@ -90,18 +98,83 @@ def build_comparison(model_price: float, llm_price: float) -> dict:
     }
 
 
-class ListingAnalyzer:
-    """Wraps the Anthropic API for listing analysis with structured outputs."""
+def build_user_message(listing, model_prediction) -> str:
+    """Render the listing and the ML prediction into the analysis prompt."""
+    return f"""Listing:
+- Title: {listing.name}
+- Description: {listing.item_description or "(none)"}
+- Category: {listing.category_name or "(none)"}
+- Brand: {listing.brand_name or "(none)"}
+- Condition: {CONDITION_LABELS.get(listing.item_condition_id, "Unknown")}
+- Shipping: {"seller pays" if listing.shipping else "buyer pays"}
+
+ML model estimate: ${model_prediction.predicted_price:.2f} \
+(range ${model_prediction.confidence_range["low"]:.2f}-\
+${model_prediction.confidence_range["high"]:.2f})
+
+Analyze this listing."""
+
+
+class GeminiAnalyzer:
+    """Listing analysis via the Google Gemini API (free tier available)."""
+
+    provider = "gemini"
 
     def __init__(self, config: Optional[dict] = None):
         llm_cfg = (config or {}).get("llm", {})
-        self.model = os.environ.get("ANTHROPIC_MODEL", llm_cfg.get("model", DEFAULT_MODEL))
+        self.model = os.environ.get(
+            "GEMINI_MODEL", llm_cfg.get("gemini_model", DEFAULT_GEMINI_MODEL)
+        )
         self.max_tokens = llm_cfg.get("max_tokens", DEFAULT_MAX_TOKENS)
         self._client = None
 
     @property
     def enabled(self) -> bool:
-        """Analysis is available only when an API key is configured."""
+        return bool(os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"))
+
+    def _get_client(self):
+        if self._client is None:
+            from google import genai
+            self._client = genai.Client()
+        return self._client
+
+    async def analyze(self, listing, model_prediction) -> ListingAnalysis:
+        from google.genai import types
+
+        client = self._get_client()
+        response = await client.aio.models.generate_content(
+            model=self.model,
+            contents=build_user_message(listing, model_prediction),
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                response_mime_type="application/json",
+                response_schema=ListingAnalysis,
+                max_output_tokens=self.max_tokens,
+                # Disable thinking so the token budget goes to the JSON answer
+                thinking_config=types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        if response.parsed is not None:
+            return response.parsed
+        # SDK returns parsed=None if schema coercion failed — validate manually
+        return ListingAnalysis.model_validate_json(response.text)
+
+
+class AnthropicAnalyzer:
+    """Listing analysis via the Anthropic API with structured outputs."""
+
+    provider = "anthropic"
+
+    def __init__(self, config: Optional[dict] = None):
+        llm_cfg = (config or {}).get("llm", {})
+        self.model = os.environ.get(
+            "ANTHROPIC_MODEL", llm_cfg.get("anthropic_model", DEFAULT_ANTHROPIC_MODEL)
+        )
+        self.max_tokens = llm_cfg.get("max_tokens", DEFAULT_MAX_TOKENS)
+        self._client = None
+
+    @property
+    def enabled(self) -> bool:
         return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
     def _get_client(self):
@@ -111,38 +184,34 @@ class ListingAnalyzer:
         return self._client
 
     async def analyze(self, listing, model_prediction) -> ListingAnalysis:
-        """
-        Ask Claude to analyze a listing.
-
-        Args:
-            listing: PredictionRequest with the raw listing fields
-            model_prediction: PredictionResponse from the trained model
-
-        Returns:
-            Validated ListingAnalysis instance.
-        """
-        condition_labels = {1: "New with tags", 2: "New without tags",
-                            3: "Good", 4: "Fair", 5: "Poor"}
-        user_message = f"""Listing:
-- Title: {listing.name}
-- Description: {listing.item_description or "(none)"}
-- Category: {listing.category_name or "(none)"}
-- Brand: {listing.brand_name or "(none)"}
-- Condition: {condition_labels.get(listing.item_condition_id, "Unknown")}
-- Shipping: {"seller pays" if listing.shipping else "buyer pays"}
-
-ML model estimate: ${model_prediction.predicted_price:.2f} \
-(range ${model_prediction.confidence_range["low"]:.2f}-\
-${model_prediction.confidence_range["high"]:.2f})
-
-Analyze this listing."""
-
         client = self._get_client()
         response = await client.messages.parse(
             model=self.model,
             max_tokens=self.max_tokens,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_message}],
+            messages=[{
+                "role": "user",
+                "content": build_user_message(listing, model_prediction),
+            }],
             output_format=ListingAnalysis,
         )
         return response.parsed_output
+
+
+def create_analyzer(config: Optional[dict] = None):
+    """
+    Pick an analyzer based on which API key is configured.
+
+    Gemini is checked first (free tier), then Anthropic. When neither key is
+    set, returns a disabled GeminiAnalyzer so callers can still read
+    `.enabled` and `.model`.
+    """
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+        return GeminiAnalyzer(config)
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return AnthropicAnalyzer(config)
+    return GeminiAnalyzer(config)
+
+
+# Backwards-compatible alias (original single-provider implementation)
+ListingAnalyzer = AnthropicAnalyzer

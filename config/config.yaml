@@ -74,9 +74,11 @@ database:
 
 # --- LLM Listing Analysis ---
 llm:
-  model: "claude-opus-4-8"       # Anthropic model for /predict/analyze
-  max_tokens: 2048               # response budget for the analysis
-  # The feature activates only when ANTHROPIC_API_KEY is set in the environment
+  gemini_model: "gemini-2.5-flash"      # used when GEMINI_API_KEY is set (free tier)
+  anthropic_model: "claude-opus-4-8"    # used when ANTHROPIC_API_KEY is set
+  max_tokens: 2048                      # response budget for the analysis
+  # The feature activates when either API key is present in the environment;
+  # Gemini takes precedence if both are set
 
 # --- Serving ---
 serving:

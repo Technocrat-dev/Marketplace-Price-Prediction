@@ -48,6 +48,7 @@ export interface AnalyzeResponse {
     ai_analysis: AIAnalysis;
     comparison: PriceComparison;
     llm_model: string;
+    llm_provider?: string;
 }
 
 // --- Model Info ---

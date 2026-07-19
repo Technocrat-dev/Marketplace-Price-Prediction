@@ -14,7 +14,13 @@ from unittest.mock import AsyncMock
 
 import src.serving.app as app_module
 from src.serving.app import app, server
-from src.serving.llm import ListingAnalysis, ListingAnalyzer, build_comparison
+from src.serving.llm import (
+    AnthropicAnalyzer,
+    GeminiAnalyzer,
+    ListingAnalysis,
+    build_comparison,
+    create_analyzer,
+)
 from src.serving.schemas import PredictionResponse
 
 
@@ -60,11 +66,18 @@ def mock_loaded_server(monkeypatch):
 @pytest.fixture
 def mock_analyzer(monkeypatch):
     """Replace the module-level analyzer with an enabled mock."""
-    analyzer = ListingAnalyzer()
+    analyzer = GeminiAnalyzer()
     monkeypatch.setattr(type(analyzer), "enabled", property(lambda self: True))
     analyzer.analyze = AsyncMock(return_value=SAMPLE_ANALYSIS)
     monkeypatch.setattr(app_module, "analyzer", analyzer)
     return analyzer
+
+
+@pytest.fixture
+def no_llm_keys(monkeypatch):
+    """Ensure no LLM provider keys are visible to the code under test."""
+    for var in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
 
 
 LISTING = {
@@ -108,6 +121,39 @@ class TestBuildComparison:
 
 
 # =========================================================================
+# Provider Selection
+# =========================================================================
+
+class TestCreateAnalyzer:
+
+    def test_gemini_selected_when_gemini_key_set(self, no_llm_keys, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        analyzer = create_analyzer()
+        assert isinstance(analyzer, GeminiAnalyzer)
+        assert analyzer.enabled
+
+    def test_anthropic_selected_when_only_anthropic_key(self, no_llm_keys, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        analyzer = create_analyzer()
+        assert isinstance(analyzer, AnthropicAnalyzer)
+        assert analyzer.enabled
+
+    def test_gemini_takes_precedence_over_anthropic(self, no_llm_keys, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        assert isinstance(create_analyzer(), GeminiAnalyzer)
+
+    def test_disabled_when_no_keys(self, no_llm_keys):
+        analyzer = create_analyzer()
+        assert not analyzer.enabled
+
+    def test_model_configurable_via_config(self, no_llm_keys, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+        analyzer = create_analyzer({"llm": {"gemini_model": "gemini-2.5-pro"}})
+        assert analyzer.model == "gemini-2.5-pro"
+
+
+# =========================================================================
 # /predict/analyze Endpoint
 # =========================================================================
 
@@ -118,12 +164,13 @@ class TestAnalyzeEndpoint:
         response = client.post("/predict/analyze", json=LISTING)
         assert response.status_code == 503
 
-    def test_503_when_llm_disabled(self, client, mock_loaded_server, monkeypatch):
-        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-        monkeypatch.setattr(app_module, "analyzer", ListingAnalyzer())
+    def test_503_when_llm_disabled(
+        self, client, mock_loaded_server, no_llm_keys, monkeypatch
+    ):
+        monkeypatch.setattr(app_module, "analyzer", create_analyzer())
         response = client.post("/predict/analyze", json=LISTING)
         assert response.status_code == 503
-        assert "ANTHROPIC_API_KEY" in response.json()["detail"]
+        assert "GEMINI_API_KEY" in response.json()["detail"]
 
     def test_successful_analysis(self, client, mock_loaded_server, mock_analyzer):
         response = client.post("/predict/analyze", json=LISTING)

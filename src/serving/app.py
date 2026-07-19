@@ -40,7 +40,7 @@ from src.data.preprocess import (
     parse_category,
 )
 from src.models.multimodal import MercariPricePredictor
-from src.serving.llm import ListingAnalyzer, build_comparison
+from src.serving.llm import create_analyzer, build_comparison
 from src.serving.schemas import (
     PredictionRequest,
     PredictionResponse,
@@ -289,8 +289,9 @@ class ModelServer:
 # Global model server instance
 server = ModelServer()
 
-# Claude-powered listing analyzer (reconfigured from config at startup)
-analyzer = ListingAnalyzer()
+# LLM listing analyzer — Gemini or Anthropic, whichever key is configured
+# (reconfigured from config at startup)
+analyzer = create_analyzer()
 
 
 @asynccontextmanager
@@ -301,7 +302,7 @@ async def lifespan(app: FastAPI):
         server.load()
         _load_api_key()
         global analyzer
-        analyzer = ListingAnalyzer(server.config)
+        analyzer = create_analyzer(server.config)
         # Configure cache from config
         serving_cfg = server.config.get("serving", {})
         prediction_cache.maxsize = serving_cfg.get("cache_maxsize", 1024)
@@ -773,7 +774,8 @@ async def predict_analyze(request: Request, prediction: PredictionRequest):
     if not analyzer.enabled:
         raise HTTPException(
             status_code=503,
-            detail="AI analysis is not available: ANTHROPIC_API_KEY is not configured",
+            detail="AI analysis is not available: set GEMINI_API_KEY or "
+                   "ANTHROPIC_API_KEY on the server",
         )
 
     result = server.predict(prediction)
@@ -791,6 +793,7 @@ async def predict_analyze(request: Request, prediction: PredictionRequest):
             result.predicted_price, analysis.llm_estimated_price
         ),
         "llm_model": analyzer.model,
+        "llm_provider": analyzer.provider,
     }
 
 

@@ -2,7 +2,8 @@
 torch>=2.0.0
 transformers>=4.40.0
 
-# LLM Listing Analysis
+# LLM Listing Analysis (either provider works; Gemini has a free tier)
+google-genai>=1.0.0
 anthropic>=0.117.0
 
 # Baselines
