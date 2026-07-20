@@ -1,0 +1,37 @@
+{
+  "model_name": "distilbert-base-uncased",
+  "trainable_parameters": 66774097,
+  "config": {
+    "epochs": 1,
+    "batch_size": 64,
+    "max_len": 96,
+    "encoder_lr": 2e-05,
+    "head_lr": 0.001,
+    "freeze_encoder": false,
+    "sample": 0
+  },
+  "is_subsample_run": false,
+  "train_samples": 1185328,
+  "val_metrics": {
+    "rmsle": 0.4253,
+    "mae": 9.48,
+    "median_ae": 4.34,
+    "r2": 0.5479
+  },
+  "test_metrics": {
+    "rmsle": 0.4272,
+    "mae": 9.48,
+    "median_ae": 4.4,
+    "r2": 0.5355
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.2712,
+      "val_rmsle": 0.4253
+    }
+  ],
+  "device": "cuda",
+  "notes": "Fine-tuned for 1 epoch on an RTX 4050 Laptop GPU (6GB). Stopped after epoch 1: validation RMSLE (0.4253) was approaching but not beating the 11-epoch BiLSTM (0.4194), and the marginal gain from epoch 2 did not justify the compute for a comparison study.",
+  "metrics_note": "Metrics computed with src.training.evaluate (raw price space), identical to the BiLSTM's training_results.json, for direct comparability."
+}

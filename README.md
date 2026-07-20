@@ -8,9 +8,9 @@
 
 A production-grade multimodal deep learning system that predicts marketplace product prices from text, categorical features, and item metadata. Built end-to-end: from raw data ingestion and model training to a served REST API and interactive frontend.
 
-Trained on **1.48 million** Mercari product listings, achieving **0.430 RMSLE** on held-out test data with a model that fuses bidirectional LSTMs (with optional self-attention) for text understanding and learned categorical embeddings for structured features.
+Trained on **1.48 million** Mercari product listings, achieving **0.420 RMSLE** on held-out test data with a model that fuses bidirectional LSTMs (with optional self-attention) for text understanding and learned categorical embeddings for structured features.
 
-Beyond the core model, the project includes a **fine-tunable DistilBERT comparison** (same splits and objective, so classic-vs-transformer trade-offs are measured, not assumed) and an **LLM-powered listing analysis** endpoint (Gemini or Claude, pluggable) that pairs the ML price estimate with an LLM's independent estimate and a structured listing critique.
+Beyond the core model, the project includes a **fine-tuned DistilBERT comparison** (same splits and objective, so classic-vs-transformer trade-offs are measured, not assumed — the transformer landed within ~2% of the BiLSTM at 4.5x the parameters, so the lighter model stays in production) and an **LLM-powered listing analysis** endpoint (Gemini or Claude, pluggable) that pairs the ML price estimate with an LLM's independent estimate and a structured listing critique.
 
 ---
 
@@ -112,17 +112,17 @@ Input Layer
 
 | Metric           | Test Set    |
 |------------------|-------------|
-| RMSLE            | **0.430** |
-| MAE              | $8.42       |
-| Median AE        | $4.71       |
-| R-squared        | 0.482       |
-| Parameters       | 15.2M       |
+| RMSLE            | **0.420** |
+| MAE              | $9.33       |
+| Median AE        | $4.30       |
+| R-squared        | 0.561       |
+| Parameters       | 14.8M       |
 
 ### Baseline Comparison
 
 | Model            | RMSLE   | MAE      | R-squared | Train Time |
 |------------------|---------|----------|-----------|------------|
-| **BiLSTM + MLP** | **0.430** | **$8.42** | **0.482** | ~15 min  |
+| **BiLSTM + MLP** | **0.420** | **$9.33** | **0.561** | ~15 min  |
 | XGBoost          | 0.555   | $12.18   | 0.301     | 8.7s       |
 | LightGBM         | 0.559   | $12.34   | 0.295     | 3.2s       |
 | Ridge Regression | 0.612   | $14.80   | 0.221     | 0.3s       |
@@ -131,25 +131,32 @@ The deep learning model outperforms all tabular baselines because it can extract
 
 ### Transformer Comparison
 
-The repo also includes a fine-tunable **DistilBERT** variant ([`scripts/train_transformer.py`](scripts/train_transformer.py)) that swaps the BiLSTM text branches for a pretrained transformer over `name [SEP] description`, fused with the identical tabular encoder, splits, and RMSLE objective — so the two architectures are directly comparable:
+A fine-tuned **DistilBERT** variant ([`scripts/train_transformer.py`](scripts/train_transformer.py)) swaps the BiLSTM text branches for a pretrained transformer over `name [SEP] description`, fused with the identical tabular encoder, splits, and RMSLE objective — so the two architectures are directly comparable. Measured results (all metrics computed identically, raw price scale — see [`outputs/transformer_results.json`](outputs/transformer_results.json)):
+
+| Model                            | Test RMSLE | MAE     | Median AE | R-squared | Params |
+|----------------------------------|------------|---------|-----------|-----------|--------|
+| **BiLSTM + MLP** (11 epochs)     | **0.420**  | **$9.33** | **$4.30** | **0.561** | 14.8M |
+| DistilBERT + tabular (1 epoch)   | 0.427      | $9.48   | $4.40     | 0.536     | 66.8M  |
+
+After a single fine-tuning epoch on 1.18M listings (RTX 4050 laptop GPU), the pretrained transformer comes within ~2% of the task-tuned BiLSTM — but does not beat it, while carrying **4.5x the parameters** and roughly **10x the inference cost**. This is a sensible outcome for this domain: marketplace listing text is short, noisy, and brand-heavy, so DistilBERT's pretrained general-language knowledge buys less than it would on longer natural prose, and the BiLSTM's task-specific vocabulary and 11 epochs of training close the gap. The fine-tune was stopped after epoch 1 once validation RMSLE plateaued near-parity — the marginal gain from further epochs did not justify the compute for a comparison study.
+
+**The engineering call:** the BiLSTM stays in production. For a high-throughput pricing API, accuracy-per-millisecond matters as much as raw RMSLE, and near-parity accuracy does not justify a 10x serving-cost increase.
 
 ```bash
-# Full run (GPU recommended); results land in outputs/transformer_results.json
+# Reproduce: full fine-tune (GPU required); results land in outputs/transformer_results.json
 python scripts/train_transformer.py --epochs 2
 
 # CPU smoke test on a subsample
 python scripts/train_transformer.py --sample 3000 --epochs 1
 ```
 
-The trade-off being measured: DistilBERT (~66M encoder parameters) brings pretrained language understanding at ~10x the inference latency and memory of the 15.2M-parameter BiLSTM. For a high-throughput pricing API, accuracy-per-millisecond matters as much as raw RMSLE — this script produces the numbers to make that call explicitly. After a full GPU run, add the `DistilBERT + Tabular` row from `outputs/transformer_results.json` to the table above.
-
 ### Dataset
 
 | Split      | Samples    |
 |------------|------------|
-| Training   | 1,186,028  |
-| Validation | 148,254    |
-| Test       | 148,254    |
+| Training   | 1,185,328  |
+| Validation | 148,166    |
+| Test       | 148,167    |
 
 ---
 
@@ -305,7 +312,7 @@ curl -X POST http://localhost:8000/predict/analyze \
     "suggested_title": "Nike Air Max 90 - Men's Size 10, Good Condition"
   },
   "comparison": { "model_price": 22.5, "llm_price": 25.0, "delta_pct": 11.1, "agreement": "close" },
-  "llm_model": "gemini-2.5-flash",
+  "llm_model": "gemini-3.5-flash",
   "llm_provider": "gemini"
 }
 ```
